@@ -24,9 +24,9 @@
 # Real, systemic toolchain finding (see specs/hyprwire/hyprwire.spec and specs/mir/mir.spec for the
 # full pattern first discovered there): applied preemptively here rather than waiting to hit it -
 # el10's default GCC 14.4.1 has real libstdc++ completeness gaps against recent C++ standard
-# library features that this codebase (C++26!) almost certainly needs. Using `gcc-toolset-15`
+# library features that this codebase (C++26!) almost certainly needs. Using `gcc-toolset-16`
 # (official, opt-in newer-GCC package on el10) from the start, with the same
-# `source .../15-env.source` + `gcc-toolset-15-gcc-plugin-annobin` pattern.
+# `source .../16-env.source` + `gcc-toolset-16-gcc-plugin-annobin` pattern.
 #
 # hyprctl's own CMakeLists.txt (a subdirectory built as part of this same project) needed
 # `hyprwire` (forked separately, specs/hyprwire/ - didn't exist anywhere either) and `re2`/
@@ -42,8 +42,11 @@
 # (mock/COPR chroots don't have those packages installed), but a real install-time conflict for
 # any real user who has them - needs a decision before this ships for real.
 #
-# STATUS: first draft, not yet mock-built. Given the pattern for every other package this session,
-# expect real iteration even with every dependency present.
+# STATUS: real iteration so far - fixed a udis86 extraction bug (see %%prep comment below) and
+# bumped gcc-toolset-15 -> gcc-toolset-16 after a real compile error: `std::ranges::starts_with`
+# (yet another recent C++ standard library range algorithm) isn't implemented in GCC 15's
+# libstdc++ either, confirmed both by the real failed build and a direct trivial-program test;
+# GCC 16.2.1 compiles the same test fine.
 # ---------------------------------------------------------------------------
 
 %global udis86_commit 5336633af70f3917760a6d441ff02d93477b0c86
@@ -60,8 +63,8 @@ Source0:        %{url}/archive/v%{version}/Hyprland-%{version}.tar.gz
 Source1:        https://github.com/stephenberry/glaze/archive/v%{glaze_version}/glaze-%{glaze_version}.tar.gz
 Source2:        https://github.com/canihavesomecoffee/udis86/archive/%{udis86_commit}/udis86-%{udis86_commit}.tar.gz
 
-BuildRequires:  gcc-toolset-15-gcc-c++
-BuildRequires:  gcc-toolset-15-gcc-plugin-annobin
+BuildRequires:  gcc-toolset-16-gcc-c++
+BuildRequires:  gcc-toolset-16-gcc-plugin-annobin
 BuildRequires:  cmake
 BuildRequires:  git-core
 BuildRequires:  python3
@@ -121,13 +124,17 @@ Header files needed to build plugins for Hyprland.
 %prep
 %autosetup -p1 -n Hyprland-%{version}
 tar xf %{SOURCE1} -C ..
-tar xf %{SOURCE2} -C .
 mv ../glaze-%{glaze_version} ../hyprland-glaze-src
-mkdir -p subprojects
-mv udis86-%{udis86_commit} subprojects/udis86
+# NOTE: subprojects/udis86 already exists as an EMPTY directory in the release tarball (a git
+# submodule placeholder, content excluded but the dir itself isn't) - a plain `mv <extracted> \
+# subprojects/udis86` nests the extracted content one level too deep inside that pre-existing dir
+# instead of replacing it (confirmed the hard way: `rpmbuild -bp --nodeps` + inspecting the result
+# showed subprojects/udis86/udis86-<hash>/CMakeLists.txt, not subprojects/udis86/CMakeLists.txt).
+# Fixed by extracting directly into the existing placeholder dir with --strip-components instead.
+tar xf %{SOURCE2} --strip-components=1 -C subprojects/udis86
 
 %build
-source /usr/lib/gcc-toolset/15-env.source
+source /usr/lib/gcc-toolset/16-env.source
 %cmake \
   -DNO_HYPRPM=OFF \
   -DFETCHCONTENT_SOURCE_DIR_GLAZE="%{_builddir}/hyprland-glaze-src" \
@@ -135,7 +142,7 @@ source /usr/lib/gcc-toolset/15-env.source
 %cmake_build
 
 %install
-source /usr/lib/gcc-toolset/15-env.source
+source /usr/lib/gcc-toolset/16-env.source
 %cmake_install
 
 %files
@@ -147,11 +154,15 @@ source /usr/lib/gcc-toolset/15-env.source
 %{_bindir}/hyprpm
 %{_bindir}/start-hyprland
 %{_datadir}/wayland-sessions/hyprland.desktop
+%{_datadir}/wayland-sessions/hyprland-uwsm.desktop
 %{_datadir}/hypr/
 %{_datadir}/xdg-desktop-portal/hyprland-portals.conf
 %{_datadir}/bash-completion/completions/hyprctl
+%{_datadir}/bash-completion/completions/hyprpm
 %{_datadir}/fish/vendor_completions.d/hyprctl.fish
+%{_datadir}/fish/vendor_completions.d/hyprpm.fish
 %{_datadir}/zsh/site-functions/_hyprctl
+%{_datadir}/zsh/site-functions/_hyprpm
 %{_mandir}/man1/*
 
 %files devel
