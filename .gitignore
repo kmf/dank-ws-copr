@@ -1,0 +1,16 @@
+# RPM build artifacts
+*.rpm
+*.src.rpm
+BUILD/
+BUILDROOT/
+RPMS/
+SRPMS/
+SOURCES/*.tar.gz
+SOURCES/*.tar.xz
+
+# Mock chroot state
+/var/lib/mock/
+
+# Local editor/OS cruft
+*.swp
+.DS_Store
