@@ -123,6 +123,19 @@ not an infrastructure blocker.
    `SETUP.md` Step 6). This doesn't cover actual GUI/Wayland-session rendering, so a real desktop
    smoke test is still open if that level of validation is wanted.
 
+## Side project — `scripts/dank-install-el10.sh`
+
+AvengeMedia's own `dankinstall` (`curl -fsSL https://install.danklinux.com | sh`) doesn't support
+RHEL/CentOS/EPEL at all (Arch, Fedora, Ubuntu 26.04+, Debian 13+, openSUSE Tumbleweed, Gentoo only).
+`scripts/dank-install-el10.sh` is a flag-driven (non-interactive, v1) shell-script equivalent for
+el10: enables EPEL + CRB + `avengemedia/danklinux` + `avengemedia/dms-git` + `kmf/dank-ws-copr`
+(+ `yalter/niri` if niri is chosen), installs the Tier 1/2 deps, the chosen compositor
+(`niri`/`hyprland`/`miracle-wm`) and terminal (`ghostty`/`kitty`/`alacritty`), `dms` + `dms-greeter`,
+and enables the `dms` systemd user service. Refuses `--compositor hyprland` if
+`wireplumber-libs`/`ibus-libpinyin` are already installed (the known lua conflict, see `Known
+Blockers` above) unless `--force` is passed. Not yet run against a real fresh el10 box end-to-end -
+only dry-run tested so far.
+
 ## Related Links
 
 **Core Dank COPR**
