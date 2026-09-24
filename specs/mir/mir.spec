@@ -24,6 +24,20 @@
 # STATUS: not yet mock-built successfully - large, complex package (694-line spec, many
 # subpackages, mixed C++/Rust build), multiple real iterations needed even with every dependency
 # present (missing rust-calloop/rust-input/rust-input-sys crates, then umockdev, then this).
+#
+# Real, deeper finding after all the dependency gaps above were resolved: Mir's C++ source itself
+# doesn't compile with el10's default GCC 14.4.1 - `std::optional<T>::value_or({...})` and similar
+# brace-init-list overload calls fail with "no matching function", a real libstdc++ completeness
+# gap (same class of issue hit and fixed for `hyprwire`'s `std::vector::append_range`, see
+# specs/hyprwire/hyprwire.spec's header for the full pattern). Fixed the same way: switched to
+# `gcc-toolset-15` (an official, opt-in newer-GCC package on el10, not a COPR/third-party
+# toolchain) via `BuildRequires: gcc-toolset-15-gcc-c++` +
+# `gcc-toolset-15-gcc-plugin-annobin` (RPM's default hardening flags need a matching annobin
+# plugin for whichever `cc1` actually runs) and `source /usr/lib/gcc-toolset/15-env.source` at the
+# top of both `%%conf` and `%%build` (mir's spec uses the newer sectioned `%%conf`/`%%build` syntax,
+# and each section is its own shell invocation, so the toolset env doesn't persist between them -
+# has to be sourced in both, unlike a single-section `%%build`-only spec like hyprwire's).
+# STATUS: not yet mock-built successfully with this fix - not yet retried.
 # ---------------------------------------------------------------------------
 
 # Force out of source build
@@ -78,7 +92,8 @@ BuildRequires:  ccache
 %if %{with clang}
 BuildRequires:  clang
 %else
-BuildRequires:  gcc-c++
+BuildRequires:  gcc-toolset-15-gcc-c++
+BuildRequires:  gcc-toolset-15-gcc-plugin-annobin
 %endif
 BuildRequires:  git-core
 BuildRequires:  cmake, ninja-build, doxygen, graphviz, lcov, gcovr
@@ -258,6 +273,7 @@ Mir unit and integration tests.
 
 
 %conf
+source /usr/lib/gcc-toolset/15-env.source
 %cmake	-GNinja \
 	%{?with_ccache:-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache} \
 	%{?with_debug:-DCMAKE_BUILD_TYPE=Debug} \
@@ -268,6 +284,7 @@ Mir unit and integration tests.
 
 
 %build
+source /usr/lib/gcc-toolset/15-env.source
 %cmake_build
 %cargo_license_summary
 %{cargo_license} > LICENSE.dependencies
