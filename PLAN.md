@@ -80,6 +80,16 @@ populated on this host — see Open Question #2 below, now more concrete.
 
 Treat Tier 4 as install-time choices, not a monolithic build requirement — DMS ships once Tiers 1–3 are green.
 
+**Tier 5 — optional features surfaced by `dms doctor`**
+- `kimageformats` — ✅ **no fork needed.** `dms doctor` checks for the plain `kimageformats` name,
+  but the real package on el10 is `kf6-kimageformats` (KF6, not the unrelated `qt6-imageformats`
+  which is separate and already installed) — already ships directly in **EPEL** (`6.30.0-1.el10_4`),
+  confirmed via `dnf install kf6-kimageformats`. Just an install-time step, not a packaging gap.
+- `cava` — ✅ forked into `kmf/dank-ws-copr` (`specs/cava/`), real COPR build succeeded (11031735).
+  Unmodified from Fedora rawhide's spec (no epel9/epel10 branch existed there); all its
+  BuildRequires (alsa-lib-devel, fftw-devel, pulseaudio-libs-devel, ncurses-devel, iniparser-devel)
+  are already on el10 BaseOS/AppStream/CRB, so no dependency chain to chase.
+
 ## Known Blockers (tracked separately — different root causes)
 
 _Updated 2026-09-24 after hands-on verification on `durin` — see `SETUP.md` Steps 5–7 for full

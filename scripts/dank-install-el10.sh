@@ -19,8 +19,11 @@
 #                                  as-is; we do not fork it)
 #   - kmf/dank-ws-copr           : everything we had to fork/build ourselves
 #                                  (hyprland, mir, miracle-wm, ghostty,
-#                                  greetd + its rust crate chain, and the
-#                                  hyprland dependency chain)
+#                                  greetd + its rust crate chain, cava, and
+#                                  the hyprland dependency chain)
+#   - EPEL directly              : kf6-kimageformats (dms doctor's
+#                                  "kimageformats" check - already ships in
+#                                  EPEL under its real KF6 package name)
 #
 # Known open issue (see specs/lua/lua.spec and PLAN.md): hyprland pulls in
 # our rebuilt `lua` 5.5, which conflicts with el10's stock lua-libs 5.4 -
@@ -58,6 +61,11 @@ NIRI_COPR="yalter/niri"
 CORE_PACKAGES=(quickshell-git matugen cliphist danksearch dgop dankcalendar-git)
 DMS_PACKAGE="dms"
 GREETER_PACKAGE="dms-greeter"
+# `dms doctor` optional-feature checks - kf6-kimageformats ships straight from
+# EPEL (dms doctor looks for the plain "kimageformats" name, but the actual
+# el10 package is kf6-kimageformats - KF6, distinct from the already-present
+# qt6-imageformats); cava is forked into kmf/dank-ws-copr (specs/cava/).
+OPTIONAL_PACKAGES=(kf6-kimageformats cava)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -299,6 +307,7 @@ fi
 # Packages
 # ---------------------------------------------------------------------------
 run sudo dnf install "${DNF_YES_FLAG[@]}" "${CORE_PACKAGES[@]}"
+run sudo dnf install "${DNF_YES_FLAG[@]}" "${OPTIONAL_PACKAGES[@]}"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$COMPOSITOR"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$TERMINAL"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$DMS_PACKAGE"

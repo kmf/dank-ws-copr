@@ -928,6 +928,30 @@ kmf/dank-ws-copr && dnf install ...` end-user flow hasn't been validated on a ma
 `durin` yet, and `copr-cli` package-tracking (SCM-based auto-rebuild-on-push) vs. manual
 `copr-cli build` per release hasn't been decided (Open Question 1 in PLAN.md).
 
+## Step 19 — `dms doctor`: cava and kimageformats
+
+Ran `dms doctor` (DMS CLI's own health-check subcommand) for the first time against the real
+niri+dms-greeter install on this host. It flagged 6 warnings; two were real optional-feature gaps
+worth closing, the rest (unsupported-OS notice, dms.service disabled, config files not yet
+created) are expected/inert for a fresh install:
+
+- **`kimageformats` - not a packaging gap at all.** `dms doctor` checks for a package literally
+  named `kimageformats`, but el10's actual package is `kf6-kimageformats` (KF6 - Qt's own
+  `qt6-imageformats`, already installed, is a *different*, unrelated package covering the same
+  concept for plain Qt apps). Checked `dnf list kf6-kimageformats` first before assuming a fork was
+  needed - it's already shipped directly in **EPEL** (`6.30.0-1.el10_4`). `sudo dnf install
+  kf6-kimageformats` and doctor immediately flipped to "Installed (4 formats)". No spec needed.
+- **`cava` - genuinely missing, forked into `specs/cava/`.** Checked Fedora dist-git branches
+  first (the established pattern all session): rawhide has it, epel9/epel10 don't. Pulled rawhide's
+  spec unmodified - none of its BuildRequires (alsa-lib-devel, fftw-devel, pulseaudio-libs-devel,
+  ncurses-devel, iniparser-devel, libtool) needed forking, all resolve straight from el10
+  BaseOS/AppStream/CRB. Built clean in mock on the first try (7s srpm + ~50s build), installed
+  locally, `cava -v` runs. Real COPR build succeeded (11031735).
+
+Added both to `dank-install-el10.sh`'s new `OPTIONAL_PACKAGES` array (installed right alongside the
+existing `CORE_PACKAGES` set) so future installs pick them up automatically instead of needing a
+separate `dms doctor` pass + manual fix.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
