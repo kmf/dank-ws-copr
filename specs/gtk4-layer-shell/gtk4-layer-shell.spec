@@ -9,10 +9,10 @@
 # self-contained port with no further blockers found.
 #
 # Changes vs. upstream Fedora spec:
-#   - Release: %autorelease -> plain 1%{?dist} (rpmautospec's git-history-based release
+#   - Release: %%autorelease -> plain 1%%{?dist} (rpmautospec's git-history-based release
 #     calculation isn't usable outside Fedora's own dist-git tooling / isn't installed here:
 #     `rpmautospec-rpm-macros` was not found in any enabled el10 repo).
-#   - %changelog: %autochangelog -> a manual initial entry, for the same reason.
+#   - %%changelog: %%autochangelog -> a manual initial entry, for the same reason.
 #
 # STATUS: NOT YET BUILT/TESTED — needs a mock build to confirm meson/vala/gobject-introspection
 # actually produce working output on el10 (should be straightforward; nothing in the dependency
@@ -118,6 +118,6 @@ Development files for %{name}.
 %{_libdir}/pkgconfig/*.pc
 
 %changelog
-* Wed Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 1.3.0-1
+* Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 1.3.0-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
 - Replaced %%autorelease/%%autochangelog (rpmautospec) with static Release/changelog

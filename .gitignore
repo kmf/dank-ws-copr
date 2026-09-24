@@ -8,6 +8,10 @@ SRPMS/
 SOURCES/*.tar.gz
 SOURCES/*.tar.xz
 
+# Local mock build output (RPMs, vendor tarballs, generated repo metadata) - not source,
+# regenerable from specs/, kept locally on durin only
+/built-rpms/
+
 # Mock chroot state
 /var/lib/mock/
 

@@ -335,6 +335,108 @@ on the two most tractable Tier 4 gaps — **ghostty** and **mangowm** — plus w
 - `breakpad` and `dank-material-shell` specs exist in Terra too but were **not** forked — Tier 1-3
   already work via `avengemedia` COPRs and don't need a second implementation.
 
+## Step 10 — Install mock, real builds: gtk4-layer-shell (SUCCESS) and ghostty (blocked, root cause identified)
+
+### Mock setup
+```
+sudo dnf install -y mock
+sudo usermod -aG mock kmf        # takes effect via `sg mock -c "..."` this session, new login otherwise
+sudo dnf install -y rpmdevtools rpm-build createrepo_c
+rpmdev-setuptree
+```
+Used the built-in `centos-stream+epel-10-x86_64` mock config (ships with `mock-core-configs`) —
+exactly CentOS Stream 10 + EPEL, matching our target.
+
+Confirmed along the way: `rpmautospec-rpm-macros` genuinely does not exist on el10 (only the
+unrelated `python3-rpmautospec` CLI tool does) — so the earlier decision to drop `%autorelease`/
+`%autochangelog` from the gtk4-layer-shell spec was correct and necessary, not just a guess.
+
+**Gotcha hit immediately**: RPM expands `%macro`-looking text even inside `#` comments. The
+attribution headers added to the vendored specs in Step 9 used bare `%autorelease`, `%prep`,
+`%install` etc. in prose, which broke spec parsing (`Unknown option > in autorelease`). Fixed by
+escaping every such reference as `%%` in `specs/ghostty/ghostty.spec` and
+`specs/gtk4-layer-shell/gtk4-layer-shell.spec` (mangowm's header had none, unaffected). Also caught
+a wrong weekday in a manual `%changelog` entry (`Wed Sep 24 2026` — actually a Thursday); RPM
+warns but doesn't fail on that, fixed anyway.
+
+### gtk4-layer-shell: ✅ built successfully, real artifacts produced
+```
+cd ~/rpmbuild/SPECS && spectool -g -R gtk4-layer-shell.spec   # downloads Source0 tarball
+rpmbuild -bs gtk4-layer-shell.spec                             # -> SRPM
+sg mock -c "mock -r centos-stream+epel-10-x86_64 --rebuild <srpm>"
+```
+Result: clean build, no errors. Produced `gtk4-layer-shell-1.3.0-1.el10.x86_64.rpm`,
+`-devel`, `-debuginfo`, `-debugsource` — all copied into `built-rpms/` in this repo (gitignored,
+not committed — binary build output, not source). Installed the `-devel` package locally and
+confirmed `pkg-config --modversion gtk4-layer-shell-0` → `1.3.0`. **This genuinely unblocks
+ghostty's missing dependency** — verified, not just theorized.
+
+### ghostty: real progress, but blocked on a Zig lazy-dependency nuance — not yet building
+Iterative debugging, each step a real build failure diagnosed and fixed:
+
+1. **First real failure**: `%prep`'s `./nix/build-support/fetch-zig-cache.sh` tries to
+   `git fetch`/download ~34 Zig package dependencies (listed in upstream's `build.zig.zon.txt`)
+   over the network. Mock (like real COPR builds) disables network during `%build`/`%prep` by
+   design. Fixed by vendoring: ran `zig fetch <url>` for all 34 URLs *outside* mock (real network),
+   producing a 559MB cache, tarred as `ghostty-1.3.1-zig-vendor.tar.zst` (75MB compressed, kept
+   locally in `built-rpms/`, gitignored — not yet uploaded anywhere permanent, see below), added as
+   `Source2`, and rewrote `%prep` to extract it instead of running the fetch script.
+2. **Second failure**: `error: unable to open system package directory '.../zig-cache/p': FileNotFound`.
+   Cause: I'd kept Terra's original `mv "%{_zig_cache_dir}/p" "zig-pkg"` line, which was specific to
+   their own Anda-only `%{zig_build_target}` macro's expectations. The *official* `zig-rpm-macros`
+   `%zig_install` macro expects the fetched-package directory to stay named `p` (via
+   `_zig_package_dir = _zig_cache_dir/p`, see `/usr/lib/rpm/macros.d/macros.zig`). Removed the `mv`.
+3. **Third failure** (real compile error, build actually started compiling C/C++ this time):
+   `pkg/harfbuzz/buffer.zig:292: error: ... has no member named 'HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES'`.
+   Root cause: el10's system `harfbuzz-devel` is 8.4.0; ghostty's Zig bindings expect the newer API
+   from the harfbuzz it vendors itself (11.0.0). Ghostty defaults to *preferring system libraries*
+   on Linux (`b.systemIntegrationOption(...)`, default `null` -> effectively "system" on non-macOS).
+   Traced Zig's build-runner source (`/usr/lib/zig/compiler/build_runner.zig`) to find the actual
+   flag: `-fno-sys=<name>` forces building the vendored copy instead. Added
+   `%global zig_build_options -fno-sys=harfbuzz` to force the vendored harfbuzz.
+4. **Fourth failure — same error persists**, even with `-fno-sys=harfbuzz` confirmed present in the
+   actual invocation line in the build log. Traced through ghostty's own
+   `pkg/harfbuzz/build.zig`/`build.zig.zon`/`c.zig` source on GitHub to find why: the vendored
+   harfbuzz C source is pulled in via `b.lazyDependency("harfbuzz", .{})` — and it's declared
+   `.lazy = true` in `pkg/harfbuzz/build.zig.zon`. When that call returns `null` (which it appears
+   to, here), the `if (b.lazyDependency(...)) |upstream| { module.addIncludePath(upstream.path("src")); ... }`
+   block that would add the *vendored* header search path is silently skipped entirely — so
+   `c.zig`'s `@cInclude("hb.h")` falls through to default system include paths and finds the old
+   system header regardless of the link-mode flag. **This is a Zig lazy-dependency resolution
+   quirk under `--system <dir>` offline mode**, not a simple spec bug: our vendoring approach (a
+   flat `zig fetch <url>` loop over every URL in `build.zig.zon.txt`) populates the content-addressed
+   cache by hash, but doesn't reproduce whatever internal state make `lazyDependency` return non-null
+   during an offline `--system`-mode build.
+
+**STATUS: not resolved this session.** Real, concrete next step (not attempted yet, stopped here to
+report rather than keep guessing blind): try vendoring via an actual `zig build --fetch` pass run
+directly against ghostty's real build graph *with real network access* (rather than a flat per-URL
+loop against `build.zig.zon.txt`), since that is the mechanism that's supposed to force-materialize
+every reachable lazy dependency the way a real (non-`--system`) build would. Then re-tar whatever
+cache state that produces and re-test in mock. This is well-diagnosed, not mysterious — just not
+finished.
+
+### greetd: status (user asked directly)
+Per PLAN.md's original open question ("un-branched vs. real port"), checked directly:
+- **Confirmed via Fedora dist-git branch listing**: `greetd.spec` exists at `rawhide`, `f41`, `f42`
+  (HTTP 200) but **404s at both `epel9` and `epel10`** — i.e., genuinely never branched to any EPEL
+  release, not a removed/broken package. This is the "just un-branched" case, the good outcome.
+- Fetched the Fedora rawhide spec and checked every `BuildRequires`: `cargo-rpm-macros` (from
+  **EPEL**, not even needing CRB), `make`, `scdoc`, `sed`, `systemd-rpm-macros`,
+  `selinux-policy-devel` — **all present on el10**.
+- Spec uses Rust's vendored-crate packaging convention (`%cargo_prep`, `%generate_buildrequires` +
+  `%cargo_generate_buildrequires`, reading `Cargo.lock`). Checked greetd's actual crate
+  dependencies (`nix`, `pam-sys`, `serde`, `serde_json`, `libc`, `tokio`, `getopts`, `thiserror`,
+  `async-trait`, `enquote`, `rpassword`) against el10's individually-packaged `rust-*-devel` crates
+  (Fedora's `rust2rpm` auto-packages these, and EPEL/AppStream carry a large slice of the common
+  ecosystem already): **9 of 11 already exist** as packages. Only **`pam-sys`** and **`enquote`**
+  are missing — both small, standalone leaf crates, not application-sized ports.
+- **Conclusion: greetd is not the open-ended "real port" PLAN.md worried about.** It's the
+  un-branched case, the spec is clean, and it's genuinely close — nearest to gtk4-layer-shell in
+  difficulty (a couple of small crate packages away), likely easier than ghostty's remaining
+  lazy-dependency issue. **Not yet forked into `specs/` or attempted in mock this session** — next
+  candidate for the same treatment gtk4-layer-shell got.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

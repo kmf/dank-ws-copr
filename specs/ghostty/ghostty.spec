@@ -6,18 +6,18 @@
 # Changes vs. upstream Terra spec:
 #   - BuildRequires: anda-srpm-macros removed (Anda-specific SRPM tooling, not needed/available
 #     outside Terra's own build system; the minisign verification it would otherwise support is
-#     already done explicitly in %prep below).
+#     already done explicitly in %%prep below).
 #   - BuildRequires: zig0.15 -> zig (Terra versions Zig as separate `zigN.NN` packages; plain
 #     EPEL10 ships a single current `zig` package, currently 0.15.2, which satisfies this).
-#   - %install rewritten to use the official `zig-rpm-macros` %zig_install macro (defined by the
-#     EPEL10 zig-rpm-macros package) instead of Terra/Anda's custom `%{zig_build_target}` macro,
+#   - %%install rewritten to use the official `zig-rpm-macros` %%zig_install macro (defined by the
+#     EPEL10 zig-rpm-macros package) instead of Terra/Anda's custom `%%{zig_build_target}` macro,
 #     which does not exist outside Anda. Release-mode and extra build flags are set via
 #     `_zig_release_mode` / `zig_install_options` overrides to match Terra's original invocation
 #     as closely as possible.
 #
 # STATUS: NOT YET BUILT/TESTED. gtk4-layer-shell (pkgconfig(gtk4-layer-shell-0)) is required and
 # does not exist anywhere in our enabled el10 repos — see SETUP.md Step 9. This spec will not
-# build until that dependency is packaged first. Needs a mock build to validate the %install
+# build until that dependency is packaged first. Needs a mock build to validate the %%install
 # macro translation above once that's in place.
 # ---------------------------------------------------------------------------
 
@@ -33,6 +33,15 @@ License:        MIT AND MPL-2.0 AND OFL-1.1 AND (WTFPL OR CC0-1.0) AND Apache-2.
 URL:            https://ghostty.org/
 Source0:        https://release.files.ghostty.org/%{version}/ghostty-%{version}.tar.gz
 Source1:        https://release.files.ghostty.org/%{version}/ghostty-%{version}.tar.gz.minisig
+# Vendored Zig package cache — see SETUP.md Step 10 for exactly how this was generated
+# (`zig fetch` against every URL in build.zig.zon.txt, run with real network access outside the
+# sandboxed mock/COPR build, then the resulting cache's `p/` dir tarred up). Needed because
+# mock/COPR builds disable network during %%build/%%prep by design, but ghostty's upstream
+# `nix/build-support/fetch-zig-cache.sh` fetches its Zig dependencies (incl. one git dependency)
+# over the network at that point. Not hosted anywhere yet — currently a local file only
+# (/tmp/ghostty-1.3.1-zig-vendor.tar.zst on durin); needs to be uploaded to actual COPR source
+# storage (or regenerated in CI) before this spec can build outside this one mock test.
+Source2:        ghostty-%{version}-zig-vendor.tar.zst
 BuildRequires:  gettext
 BuildRequires:  gtk4-devel
 BuildRequires:  libadwaita-devel
@@ -44,6 +53,7 @@ BuildRequires:  pandoc-cli
 BuildRequires:  systemd-rpm-macros
 BuildRequires:  zig
 BuildRequires:  zig-rpm-macros
+BuildRequires:  zstd
 BuildRequires:  pkgconfig(blueprint-compiler)
 BuildRequires:  pkgconfig(bzip2)
 BuildRequires:  pkgconfig(freetype2)
@@ -191,9 +201,14 @@ This package contains the libraries and header files that are needed for develop
 /usr/bin/minisign -V -m %{SOURCE0} -x %{SOURCE1} -P %{public_key}
 %autosetup
 
-ZIG_GLOBAL_CACHE_DIR="%{_zig_cache_dir}" ./nix/build-support/fetch-zig-cache.sh
-# Workaround for 0.16 macros working around zig problem
-mv "%{_zig_cache_dir}/p" "zig-pkg"
+# Replaces upstream's `ZIG_GLOBAL_CACHE_DIR=... ./nix/build-support/fetch-zig-cache.sh`, which
+# requires network access unavailable in a mock/COPR build (see Source2 comment above).
+# NOTE: unlike Terra's original (which used their own Anda-specific `%%{zig_build_target}` macro
+# and renamed this dir to `zig-pkg` to match it), we leave it named `p` here — the official
+# zig-rpm-macros `%%zig_install` macro (via `_zig_package_dir` = `_zig_cache_dir/p`) expects that
+# exact name. Renaming it broke the build the first time this was tried (see SETUP.md Step 10).
+mkdir -p "%{_zig_cache_dir}"
+tar --zstd -xf %{SOURCE2} -C "%{_zig_cache_dir}"
 
 %build
 
@@ -204,6 +219,13 @@ mv "%{_zig_cache_dir}/p" "zig-pkg"
 # maps to overriding `_zig_release_mode`; the rest map to `zig_install_options`.
 %global _zig_release_mode fast
 %global zig_install_options -Dversion-string="%{version}" -Dstrip=false -Dpie=true -Demit-docs -Demit-themes=false
+# el10's harfbuzz-devel (8.4.0) is too old for ghostty's bindings, which expect the newer
+# harfbuzz it vendors itself (11.0.0, fetched into the Source2 vendor cache above) - discovered
+# via a real build failure (`error: ... has no member named 'HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES'`,
+# see SETUP.md Step 10). `-fno-sys=<name>` is Zig's build-runner flag (see
+# /usr/lib/zig/compiler/build_runner.zig) to force building the vendored copy of a dependency
+# instead of linking the system one ghostty's build.zig would otherwise prefer by default.
+%global zig_build_options -fno-sys=harfbuzz
 %zig_install
 
 # Don't conflict with ncurses-term on F42 and up
