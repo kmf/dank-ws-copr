@@ -619,6 +619,75 @@ ghostty --version
 the 7th verified-working spec this session, and resolves the last open Tier 4 blocker that wasn't
 either a hard external gap (miraclewm) or a deliberate deprioritization (hyprland).
 
+## Step 14 — mangowm investigation: wlroots0.19 + scenefx built, mangowm itself blocked on a version-drift discovery
+
+Followed the same fork-from-Fedora pattern for mangowm's two known gaps (Step 9): `wlroots-0.19`
+and `scenefx-devel`.
+
+### wlroots0.19: forked from Fedora rawhide, built clean first try
+Full dependency sweep against el10 before forking (`libliftoff`, `egl`, `gbm`, `glesv2`, `hwdata`,
+`lcms2`, `libdisplay-info`, `libdrm`, `libinput`, `libseat`, `libudev`, `pixman-1`, `vulkan`,
+`wayland-*`, all the `xcb-*` variants, `xkbcommon`, `xwayland`) - all present. Deliberately did NOT
+use Fedora's current unversioned `wlroots` (0.20.2) instead: checked its BuildRequires too and
+found real version floors above what el10 ships (`pixman-1 >=0.46.0` vs el10's 0.43.x,
+`wayland-protocols >=1.47` vs 1.41, `xkbcommon >=1.8.0` vs 1.7.0, `libdisplay-info >=0.2.0` vs
+0.1.1) - a bigger, riskier cascade, and `wlroots0.19` cleanly matched el10 as-is. Forked, adapted
+(`%autorelease`→static, per the usual pattern), built clean in mock on the first try.
+
+### scenefx: Fedora's current spec targets the wrong wlroots - had to go find an older release
+Fedora's rawhide/f44/f45 `scenefx.spec` is all version 0.5, requiring `pkgconfig(wlroots-0.20)` -
+no 0.19-compatible version left anywhere in Fedora. Checked upstream's own GitHub tags/meson.build
+history directly: **0.4.1** is the last release whose `meson.build` targets `wlroots-0.19`
+specifically (`wlroots_version = ['>=0.19.0', '<0.20.0']`). Wrote a spec from scratch (not
+machine-adapted from Fedora's, since the version differs) following Fedora's packaging structure/
+conventions, pinned to 0.4.1. **Caught one real bug before building**: scenefx's meson.build names
+its versioned library/pkgconfig/include-dir after **major.minor only**
+(`scenefx-0.4`), not the full version - Fedora's 0.5 spec gets away with using `%{version}` because
+0.5 has no patch component, but our 0.4.1 does, so a naive copy would have shipped
+`libscenefx-0.4.1.so` in `%files` while the actual build output is `libscenefx-0.4.so` -
+`%files` would have failed the build for using the wrong path (`Installed (but unpackaged)
+file(s) found` / missing file, one or the other). Fixed with a `%global soname_ver 0.4` before
+writing the spec, verified against 0.4.1's actual meson.build content on GitHub, not assumed. Built
+clean in mock on the first try once the local `wlroots0.19` repo was in place.
+
+### mangowm itself: real build attempt, hit a genuine version-drift discovery
+Built the SRPM and ran it through mock with `wlroots0.19` + `scenefx` available. Failed with:
+```
+Run-time dependency wlroots-0.20 found: NO (tried pkgconfig)
+meson.build:33:14: ERROR: Dependency "wlroots-0.20" not found, tried pkgconfig
+```
+**mango's own source at the exact 0.16.3 tag Terra's spec pins already requires wlroots-0.20**,
+contradicting Terra's own `BuildRequires: pkgconfig(wlroots-0.19)` line - their spec had simply gone
+stale relative to upstream's own version churn (mango moves fast: tags run 0.14.0 through current
+0.17.3). Bisected via GitHub raw `meson.build` fetches across tags to find exactly where the
+requirement changed: **0.14.0 is the last mango release still targeting wlroots-0.19**; 0.15.0
+onward all require wlroots-0.20.
+
+Re-checked the wlroots-0.20 version floors more carefully (picking the *latest available* el10
+package each time, not just the first listed - `libdrm` had already surprised me this way once
+this session): **2 of the original 4 flagged mismatches turned out to already be resolved** -
+`wayland-protocols-devel` has 1.49 available (needed >=1.47) and `libdisplay-info-devel` has 0.2.0
+available (needed >=0.2.0), both just weren't the *first* result `dnf repoquery` printed. Only
+**`pixman-devel`** (latest available 0.43.4, needed >=0.46.0) and **`libxkbcommon-devel`** (latest
+available 1.7.0, needed >=1.8.0) are genuine remaining gaps - and unlike `wlroots`, these can't get
+a side-by-side compat package cleanly, since wlroots/mango reference them by their plain,
+unversioned pkgconfig names (`pixman-1`, `xkbcommon`), not a versioned one like `wlroots-0.19` vs
+`wlroots-0.20`.
+
+**Presented this as a real fork-in-the-road decision rather than picking unilaterally** (system-wide
+library bump vs. an old pinned mango vs. deprioritizing) - **user decided: bump pixman + xkbcommon
+system-wide.** Not yet executed as of this write-up. Doing so means: fork/build newer `pixman` and
+`xkbcommon`, fork/build Fedora's current unversioned `wlroots` (0.20.2), re-point `scenefx` back to
+its current 0.5 release (targeting wlroots-0.20, not the 0.4.1 we just built), then retry `mangowm`
+0.16.3 itself. The already-built `wlroots0.19`/`scenefx-0.4.1` pair remains valid, verified work -
+just not the path mangowm ends up using; may still be useful later as a stable/older base for
+something else.
+
+**Also recorded standing preference (explicit, 2026-09-24): always prefer `avengemedia` over Terra
+(or any other third-party source) when both provide equivalent packages.** Settles the earlier
+"build vs. adopt Terra's DankMaterialShell spec" open question for good - stick with avengemedia's
+`dms`/`dms-cli`. See PLAN.md's Related Links section for the full note.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
