@@ -12,8 +12,13 @@
 # This spec is genuinely complex (autotools bootstrap building both 5.5.1 and a 5.4.9 compat
 # library, 6 patches, sed-hacked libtool) - forked as-is with no changes, trusting Fedora's own
 # working recipe rather than trying to simplify it.
-# STATUS: not yet mock-built - this is the most complex from-scratch-feeling fork this session,
-# real risk of needing iteration even with every dependency present.
+# STATUS: mock-built successfully as-is (5.5.1-2). UPDATE 2026-09-24: added a `lua5.5.pc` ->
+# `lua.pc` compat symlink after a real failed `hyprland` build - its CMakeLists.txt's
+# `pkg_search_module(LUA REQUIRED ... lua55 lua5.5 lua-55 lua-5.5 lua>=5.5 lua<5.6)` never actually
+# matches via the last two candidates (pkg-config parses `lua>=5.5` with no spaces as a *literal*
+# module name lookup, not "lua" + a version constraint - confirmed directly against this exact
+# lua.pc), so it depends on one of the plain aliased names resolving instead. Not yet
+# re-mock-built with this addition.
 # ---------------------------------------------------------------------------
 
 %global major_version 5.5
@@ -192,6 +197,14 @@ mkdir -p $RPM_BUILD_ROOT%{_datadir}/lua/%{major_version}
 # multilib systems and install luaconf.h wrapper
 mv %{buildroot}%{_includedir}/luaconf.h %{buildroot}%{_includedir}/luaconf-%{_arch}.h
 install -p -m 644 %{SOURCE4} %{buildroot}%{_includedir}/luaconf.h
+
+# Compat alias: some projects (e.g. Hyprland) look for a "lua5.5" pkgconfig module name
+# specifically, not just "lua" with a version constraint - and some do so with a pkg-config query
+# syntax that doesn't actually work (`lua>=5.5` with no spaces around the operator is parsed by
+# pkg-config as a *literal* module name, not "lua" + a version constraint - confirmed directly by
+# testing the exact query against this very lua.pc file), so they end up depending on one of the
+# plain aliased names matching instead. This symlink makes that "lua5.5" candidate resolve.
+ln -s lua.pc %{buildroot}%{_libdir}/pkgconfig/lua5.5.pc
 
 %if 0%{?bootstrap}
 pushd lua-%{bootstrap_version}
