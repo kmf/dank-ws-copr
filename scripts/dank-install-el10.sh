@@ -28,10 +28,13 @@
 # refuses to proceed with --compositor hyprland if it detects either
 # installed, unless --force is given.
 #
-# When --no-greeter isn't passed, this script also runs `dms-greeter enable
-# --command <compositor>` (mapping miracle-wm -> dms-greeter's own "miracle"
-# name) and, if gdm is enabled, disables it and enables greetd in its place -
-# without this, gdm silently keeps winning the display-manager.service alias
+# When --no-greeter isn't passed, this script also runs `dms-greeter enable`
+# and then patches /etc/greetd/config.toml if it didn't auto-detect the
+# compositor we actually asked for (mapping miracle-wm -> dms-greeter's own
+# "miracle" name; --command is not a valid flag on the `enable` subcommand
+# itself - see the inline comment at the call site) and, if gdm is enabled,
+# disables it and enables greetd in its place - without this, gdm silently
+# keeps winning the display-manager.service alias
 # at boot even after greetd is installed and configured.
 
 set -euo pipefail
@@ -303,20 +306,31 @@ run sudo dnf install "${DNF_YES_FLAG[@]}" "$DMS_PACKAGE"
 if [ "$INSTALL_GREETER" = "1" ]; then
     run sudo dnf install "${DNF_YES_FLAG[@]}" "$GREETER_PACKAGE"
 
-    # dms-greeter's --command flag uses its own compositor names, which don't
-    # all match our package/compositor names (notably miracle-wm -> miracle).
+    # dms-greeter's own compositor names don't all match our package/compositor
+    # names (notably miracle-wm -> miracle).
     case "$COMPOSITOR" in
     miracle-wm) GREETER_COMMAND="miracle" ;;
     *) GREETER_COMMAND="$COMPOSITOR" ;;
     esac
 
-    # `dms-greeter enable` checks that its --command target is actually on
-    # PATH before wiring up greetd - defaults to niri if --command is left
-    # off, which fails with "niri was not found in path" for anyone who
-    # chose --compositor hyprland/miracle-wm. Pass it explicitly.
-    GREETER_ENABLE_FLAGS=(--command "$GREETER_COMMAND" enable)
+    # NOTE: `--command` is only a flag on dms-greeter's root/`run` command,
+    # not on the `enable` subcommand (Cobra doesn't propagate a non-persistent
+    # parent flag to subcommands) - `dms-greeter --command X enable` hard
+    # fails with "unknown flag: --command". `enable` instead auto-detects
+    # whichever compositor is on PATH and writes it straight into
+    # /etc/greetd/config.toml's `command =` line itself, so it must be run
+    # plain, then patched below if it didn't pick what we actually want.
+    GREETER_ENABLE_FLAGS=(enable)
     [ "$ASSUME_YES" = "1" ] && GREETER_ENABLE_FLAGS+=(-y)
     run sudo dms-greeter "${GREETER_ENABLE_FLAGS[@]}"
+
+    GREETD_CONFIG=/etc/greetd/config.toml
+    if [ "$DRY_RUN" = "1" ]; then
+        printf '[dry-run] ensure %s runs "dms-greeter --command %s" in %s\n' "$GREETER_COMMAND" "$GREETER_COMMAND" "$GREETD_CONFIG"
+    elif [ -f "$GREETD_CONFIG" ] && ! grep -q -- "--command $GREETER_COMMAND" "$GREETD_CONFIG"; then
+        yellow "dms-greeter enable configured a different compositor than requested; fixing $GREETD_CONFIG"
+        sudo sed -i -E "s/--command [A-Za-z_-]+/--command $GREETER_COMMAND/" "$GREETD_CONFIG"
+    fi
 
     # `dms-greeter enable` wires up greetd's own config but does not fight
     # gdm for the display-manager.service alias - only one unit can hold it,
