@@ -243,6 +243,49 @@ mock, disk space all present/official). Every remaining gap is a "someone needs 
 specs" problem, of varying size (greetd/ghostty = small, hyprland = larger due to its dependency
 fan-out, miraclewm = unscoped).
 
+## Step 8 — Terra EL research (not enabled on durin — research only, per explicit decision)
+
+User suggested checking whether Terra (terra.fyralabs.com / terrapkg) already has any of our
+target packages. **Not enabled on `durin`** — their documented bootstrap install uses
+`--nogpgcheck` for the initial release RPM, which the session's safety guardrails correctly
+flagged for explicit sign-off; user chose research-only via GitHub for now, so nothing below was
+installed or verified by actually resolving against the live repo — it's spec-source research only.
+
+### What Terra EL is
+- Separate from mainline Terra (Fedora-focused): **Terra EL** is a dedicated Enterprise Linux track,
+  repo `terrapkg/packages-el` on GitHub, **default branch is literally `el10`** — "Only EL10 is
+  supported" per their own docs. Requires EPEL as a base.
+- Documented enable command (not run): `dnf install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terrael$releasever' terra-release`
+
+### Packages found (spec-source only, confirmed present in the `el10` branch via GitHub API — NOT confirmed as actually resolvable/installable, since the repo isn't enabled)
+| Package | Present in Terra EL? | Notes |
+|---|---|---|
+| **dank-material-shell** | ✅ yes, full spec (`anda/system/dank-material-shell/`) | Packaged as `DankMaterialShell` v1.6.1, proper Fedora-style Go spec (go-rpm-macros, systemd user unit, shell completions). **Explicitly `Obsoletes`/`Provides` `dms` and `dms-cli`** — clearly designed as a drop-in replacement/supersession of avengemedia's COPR package. Depends on `quickshell`, `cava`, `cliphist`, `danksearch`, `dgop`, `matugen`, `qt6ct`, `khal`, etc. |
+| **breakpad** | ✅ yes, full spec | `anda/lib/breakpad/` |
+| **ghostty** | ✅ yes — 3 channels | `anda/devs/ghostty/{stable,nightly,tip}/`, each with own spec |
+| **mangowm** | ✅ yes, full spec | `anda/desktops/mangowm/mangowm.spec` — **but requires `pkgconfig(wlroots-0.19)`**, newer than the `wlroots-0.18.2` currently in EPEL10 (see Step 7), plus `scenefx-devel` (also Terra-packaged). Not a free win — has its own version-mismatch gap to resolve. |
+| **hyprland's dependency libs** | ⚠️ partial | `hyprutils`, `hyprlang`, `hyprgraphics`, `hyprwayland-scanner`, `hypridle`, `hyprlock` all have specs under `anda/desktops/hyprland/`. **`aquamarine` and `hyprcursor` were not found** (GitHub code search needs auth, so this is a directory-listing check, not exhaustive). |
+| **hyprland (core)** | ❌ **removed, deliberately** | Confirms/upgrades our earlier "real blocker" assessment. Terra's own removal PR (#17477) states plainly: *"they don't build anymore and we don't support hyprland as a WM, esp since the whole freedesktop thing"* — i.e. this isn't just "no el10 COPR target" (PLAN.md's original framing), it's an active third-party judgment that Hyprland is currently unbuildable/unsupportable, likely tied to Hyprland's own recent governance/licensing controversy. **Materially worse outlook than previously assessed** — worth deprioritizing rather than treating as "just needs 5 more lib ports." |
+| **niri (core)** | ⚠️ not found directly | Only accessory packages present (`iio-niri`, `niri-autostart`, `nirius`) under `anda/desktops/niri/` — no `niri.spec` itself in this listing. Moot either way since niri already installs cleanly via `yalter/niri` COPR (Step 5). |
+| **quickshell** | ❌ not present anywhere in Terra | Confirms `avengemedia/danklinux` COPR remains the only known source — no duplicate/competing effort to reconcile there. |
+
+### Strategic implication — needs a decision, not just more research
+Terra EL shipping a **complete, well-formed, Obsoletes-aware spec for DMS itself** changes the
+shape of this project's choices. Options, roughly in order of effort:
+1. **Ignore Terra, stay the current course** — keep consuming `avengemedia/danklinux` +
+   `avengemedia/dms-git` COPRs as planned. Simplest, matches PLAN.md as written, but means
+   duplicating packaging effort Terra has already done (and done arguably "more properly" —
+   Fedora packaging conventions, Obsoletes chain, systemd user units).
+2. **Adopt Terra EL as a dependency source** — enable it (after resolving the GPG-check question)
+   and consume its `dank-material-shell`, `breakpad`, `ghostty` packages directly instead of
+   building our own, focusing `dank-ws-copr`'s own work only on genuine gaps (greetd, and
+   whatever Tier 4 pieces still aren't covered anywhere).
+3. **Use Terra's specs as reference/starting points** — fork/adapt their `.spec` files (e.g. for
+   ghostty, breakpad) into our own COPR rather than depending on their infra directly, keeping full
+   control while not starting from zero.
+
+This is a project-direction call, not something to decide unilaterally — flagging back to the user.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

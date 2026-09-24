@@ -55,7 +55,7 @@ commands/output. Several original entries were stale._
 | niri | ~~COPR doesn't install on el10~~ **RESOLVED — false alarm.** `dnf install niri` resolves and installs cleanly today (only extra dep is `libseat` from EPEL). Confirmed via dry-run + smoke test. | None — ship it |
 | greetd | Not confirmed in EPEL10. **Confirmed: not a toolchain issue** — Rust is an official AppStream package (1.98.1) on el10. This is purely an unwritten/unbranched spec. `dms-greeter`/`dms-greeter-git` are hard-blocked on this (verified: `nothing provides greetd`). | Write a from-scratch EL10 spec (small, all-Rust project — low risk) |
 | ghostty | Needs Zig toolchain. **Confirmed available**: `zig-0.15.2` ships from official EPEL10, no COPR/custom repo needed. | Port the reference spec (`gitlab.com/lumarel/ghostty-rpm`) against the EPEL Zig package |
-| hyprland | COPR (lionheartp/Hyprland) has no el10/CentOS-Stream-10 target. **Refined**: base `wlroots-0.18.2`/`wlroots-devel` are already in EPEL, so the wlroots chain itself is fine. The real gap is Hyprland's *own* newer libs — `aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics` — none of which exist anywhere on el10 yet. | Port those 5 upstream libs first (standard CMake/C++, no toolchain gap), then Hyprland itself |
+| hyprland | COPR (lionheartp/Hyprland) has no el10/CentOS-Stream-10 target. Base `wlroots-0.18.2`/`wlroots-devel` are fine (EPEL); the gap is Hyprland's own newer libs (`aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics`). **Worse than previously framed**: Terra EL (see Related Links) — a third party actively packaging for el10 — deliberately *removed* Hyprland from their repo, stating plainly "they don't build anymore and we don't support hyprland as a WM, esp since the whole freedesktop thing." This isn't just "no COPR target," it's an informed third party judging Hyprland currently unbuildable/unsupportable on this kind of platform. Terra does still carry specs for most of the dependency libs (`hyprutils`, `hyprlang`, `hyprgraphics`, `hyprwayland-scanner`, `hypridle`, `hyprlock`) but not Hyprland core itself, nor `aquamarine`/`hyprcursor`. | **Recommend deprioritizing** below mangowm/niri rather than treating as a straightforward 5-lib port |
 | miraclewm | Not wlroots-based (Mir). Confirmed absent from all enabled repos; not investigated further yet. | Separate investigation track — different dependency stack (Mir, mir-graphics-drivers), may not exist on EL10 |
 
 **Bottom line:** none of the remaining Tier 4 gaps are blocked on missing build infrastructure —
@@ -101,6 +101,14 @@ not an infrastructure blocker.
 
 **Reference specs**
 - https://gitlab.com/lumarel/ghostty-rpm/-/blob/master/ghostty.spec?ref_type=heads
+- **Terra EL** (`terrapkg/packages-el`, default branch `el10` — third-party repo explicitly targeting
+  EL10/CentOS Stream 10, requires EPEL): https://github.com/terrapkg/packages-el — has full specs for
+  `dank-material-shell` (Obsoletes/Provides `dms`/`dms-cli`!), `breakpad`, `ghostty` (3 channels),
+  `mangowm` (needs newer wlroots-0.19 than el10's current EPEL 0.18.2), and most of Hyprland's dep
+  libs — but Hyprland core was deliberately removed by them. **Not yet enabled anywhere** — their
+  bootstrap install method uses `--nogpgcheck`, flagged for explicit approval; researched via GitHub
+  only so far. See `SETUP.md` Step 8 for full detail and a project-direction question this raises
+  (build our own DMS spec vs. consume/adapt Terra's).
 
 **CentOS Stream 10 / EPEL setup**
 - https://doc.fedoraproject.org/cs/epel/getting-started
