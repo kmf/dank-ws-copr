@@ -810,6 +810,124 @@ two real breaks this way:
 None of these three bumps have been mock-built yet as of this write-up (checks/edits done, builds
 queued behind the currently-running `mir`/`lua` builds).
 
+## Step 18 — hyprland AND miracle-wm both succeed: the session's capstone
+
+Picking up from Step 17's status report (mir failing on a real GCC/C++ compile incompatibility,
+hyprland.spec not yet written), user said simply "hyprland" - continued on both fronts in parallel.
+
+### The systemic fix: gcc-toolset-15/16
+Root cause behind mir's `std::optional<T>::value_or({...})` compile failures and (discovered next)
+`hyprwire`'s `std::vector::append_range` failures: **el10's default GCC 14.4.1 has real libstdc++
+completeness gaps** against C++23/26 standard library features these codebases use - not code bugs,
+a genuine toolchain-version gap. Fixed with **`gcc-toolset-15`** (15.2.1) and later
+**`gcc-toolset-16`** (16.2.1) - both official, opt-in newer-GCC packages already on el10 (RHEL's
+standard mechanism for exactly this scenario), not COPR/third-party toolchains.
+
+Getting this working cleanly took three real, distinct sub-fixes (each found via an actual failed
+build, not anticipated):
+1. `%enable_gcctoolset15` as a top-level spec macro fails with `Unknown tag` inside a **fresh** mock
+   chroot - mock's own internal `rpmbuild -bs --nodeps` step parses the spec *before* any
+   BuildRequires (including `gcc-toolset-15-runtime`, which ships the macro file) are installed.
+   Fixed by sourcing `/usr/lib/gcc-toolset/15-env.source` directly as a shell command inside
+   `%build` (and `%conf`, for mir's newer sectioned spec syntax - each section is its own shell
+   invocation, so the env doesn't persist between them) instead of relying on the macro.
+2. RPM's default hardening CFLAGS reference `-specs=.../redhat-annobin-cc1`, needing an annobin
+   plugin matching whichever `cc1` actually runs - gcc-toolset's own `cc1` can't find the *system*
+   GCC's plugin. Fixed with `gcc-toolset-15-gcc-plugin-annobin`.
+3. GCC 15 itself wasn't new enough for hyprland specifically: `std::ranges::starts_with` (a newer
+   C++23 range algorithm than `append_range`) isn't in GCC 15's libstdc++ either - confirmed via a
+   real failed build AND a direct trivial-program compile test before committing to the bump.
+   GCC 16.2.1 handles it fine. mir and hyprwire stayed on gcc-toolset-15 (sufficient for their
+   actual code); hyprland alone needed gcc-toolset-16.
+
+### mir: real success
+With `umockdev` + `python-dbusmock` (both forked, see below) and gcc-toolset-15, **mir built
+successfully in 13m37s of real compilation** - the first time in this whole thread of work. Copied
+into the local repo, queued to real COPR (build 11031169) - **succeeded there too**.
+
+### python-dbusmock: the second "unconditional at configure time" surprise
+Same class of mistake as `umockdev` (Step 15's Step 15... see prior entry): assumed
+`python3-dbusmock` was test-execution-only per Fedora's own "# For the tests" comment, made it
+conditional on `run_tests`, got a real failed build (`ModuleNotFoundError: No module named
+'dbusmock'`) proving Mir's CMake configure does a Python import check unconditionally too. Also
+corrected a naming mistake: the dist-git repo is `python-dbusmock` (not `python3-dbusmock`, which
+is only the built binary RPM's name) - the earlier "doesn't exist in Fedora" claim was from
+checking the wrong path entirely.
+
+### hyprwire: another genuinely from-scratch package, needed for hyprctl
+Reading hyprland's own `hyprctl/CMakeLists.txt` before writing `hyprland.spec` surfaced a
+dependency on `pkgconfig(hyprwire)` - a small IPC wire-protocol library, checked and confirmed to
+not exist in Fedora, Terra, or anywhere else. Written from scratch following this repo's
+aquamarine/hyprwayland-scanner conventions (same org, same CMake idioms - a lib plus an internal
+`scanner` subdirectory). Hit the append_range issue here first (Step above), then built clean.
+
+### hyprland.spec: written from scratch, the capstone of the whole session
+No reference spec exists anywhere for hyprland itself (Fedora: 404 everywhere; Terra: deliberately
+removed, "doesn't build anymore"). Two upstream dependencies needed vendoring rather than
+packaging separately, both researched and resolved cleanly:
+- **glaze** (header-only C++ JSON lib): hyprland's own CMakeLists.txt already has a FetchContent
+  fallback for "not found" - rather than fight that, vendored the exact release tarball and pointed
+  `FETCHCONTENT_SOURCE_DIR_GLAZE` at a locally-extracted copy in `%prep`, so FetchContent resolves
+  it locally instead of hitting the network (mock/COPR builds have none in `%build`).
+- **udis86**: hyprland falls back to `add_subdirectory(subprojects/udis86)` (a git submodule, not
+  in GitHub's release tarball) if no system udis86 is found. Fetched the *exact* pinned submodule
+  commit (`canihavesomecoffee/udis86` @ `5336633`, found via GitHub's tree API against the release
+  tag) and vendored it directly - simpler and more certain than trying to satisfy the
+  pkg_check_modules/find_library fallback chain with a separately-packaged Fedora udis86 (which
+  doesn't ship a pkgconfig file anyway, so wouldn't even satisfy the first check).
+
+Real, distinct build failures fixed in sequence, each from an actual attempt, not anticipated:
+1. **udis86 nesting bug**: `subprojects/udis86` already exists as an *empty* directory in the
+   release tarball (the git submodule's placeholder, content excluded but the dir itself isn't) -
+   a plain `mv <extracted> subprojects/udis86` nests content one level too deep inside the existing
+   dir instead of replacing it. Confirmed via `rpmbuild -bp --nodeps` + inspecting the actual
+   extracted tree, not guessed. Fixed with `tar --strip-components=1 -C subprojects/udis86`
+   (extracting *into* the existing placeholder) instead of extract-then-move.
+2. **append_range**, fixed with gcc-toolset-15 (see above).
+3. **A real pkg-config syntax bug in hyprland's own CMakeLists.txt**: its Lua detection list is
+   `pkg_search_module(LUA REQUIRED ... lua55 lua5.5 lua-55 lua-5.5 lua>=5.5 lua<5.6)` - the last two
+   candidates are dead on arrival, because pkg-config parses `lua>=5.5` (no spaces around the
+   operator) as a *literal package name* to look up, not "lua" + a version constraint - confirmed
+   directly by testing the exact query against our own `lua.pc` (`pkg-config --exists 'lua>=5.5'`
+   genuinely looks for a file named `lua>=5.5.pc`). So hyprland actually depends on one of the
+   *plain* candidate names resolving instead. Fixed by adding a `lua5.5.pc -> lua.pc` symlink to
+   `specs/lua/` (one line in `%install`, wildcard `%files` picked it up automatically).
+4. **starts_with**, fixed by bumping to gcc-toolset-16 (see above).
+5. **Missed a local-repo sync step**: `aquamarine`'s first successful mock build (queued straight
+   to COPR at the time) was never copied into the local `built-rpms/` repo used for further local
+   mock testing - caught via a real failed build (`nothing provides pkgconfig(aquamarine)`), fixed
+   by copying it in (a process-hygiene mistake, not a spec bug).
+6. **Incomplete `%files`**: missing `hyprpm`'s shell completions and the `hyprland-uwsm.desktop`
+   session file - caught via `error: Installed (but unpackaged) file(s) found` *after* the actual
+   compile had already succeeded (confirmed real progress, not another compile-stage failure).
+
+**Final result: `hyprland` built clean in mock (8m39s), installed locally alongside its full custom
+dependency chain, and succeeded on real COPR (build 11031343).**
+
+### Confirmed, not-forced: the lua conflict is real and now hits more than one package
+Installing `hyprland` locally alongside its dependencies hit the exact `lua`/el10-`lua-libs`
+conflict flagged in Step 17/PLAN.md - and confirmed it also affects **`wireplumber-libs`** (audio,
+not just `ibus-libpinyin`/`brlapi`), a far more commonly-installed package. Did not force this with
+`--allowerasing` on `durin`. This remains a real, unresolved packaging-strategy question (rename to
+a side-by-side `lua5.5` package vs. accept the conflict vs. something else) that needs a decision
+before this ships broadly - the mock build success proves the *package* is correct; it doesn't
+resolve what happens when a real user with wireplumber/ibus-libpinyin installs it.
+
+### Session status: everything explicitly requested this session is done
+- `hyprland` - ✅ real COPR build succeeded (11031343)
+- `miracle-wm` - ✅ real COPR build succeeded (11031307), depended on `mir` - ✅ also succeeded
+  (11031169)
+- All supporting packages discovered along the way (`aquamarine`, `hyprwire`, `hyprland-protocols`,
+  `umockdev`, `python-dbusmock`, `rust-calloop`, `rust-input`, `rust-input-sys`, version bumps to
+  `hyprutils`/`hyprlang`/`hyprgraphics`/`libxkbcommon`/`lua`) - all ✅ succeeded on real COPR.
+
+**Open items for later, not blockers for what was asked**: the lua/wireplumber conflict (needs a
+decision), `mangowm` (still blocked on the pixman/xkbcommon system bump decision from Step 14, not
+touched further), `dms-greeter`'s real greetd chain already shipped, the actual `dnf copr enable
+kmf/dank-ws-copr && dnf install ...` end-user flow hasn't been validated on a machine other than
+`durin` yet, and `copr-cli` package-tracking (SCM-based auto-rebuild-on-push) vs. manual
+`copr-cli build` per release hasn't been decided (Open Question 1 in PLAN.md).
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
