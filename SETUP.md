@@ -513,6 +513,27 @@ Step 6). **It's fully resolved now** - `dms-greeter`/`dms-greeter-git` can insta
 `rust-enquote`, `rust-greetd_ipc`, `rust-rpassword5`, `greetd`. All under `specs/` with attribution
 headers; none uploaded to any actual COPR yet (see PLAN.md's restated goal below).
 
+## Step 12 — Push to GitHub, install copr-cli
+
+User confirmed the `kmf/dank-ws-copr` GitHub repo exists. This host had no `gh` auth and no git
+remote configured yet.
+```
+gh auth status                          # -> not logged in
+ssh -T git@github.com                   # -> "Host key verification failed" (fresh known_hosts)
+ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+ssh -T git@github.com                   # -> "Hi kmf! ... successfully authenticated"
+git remote add origin git@github.com:kmf/dank-ws-copr.git
+git fetch origin                        # -> confirmed genuinely empty, no branches, safe to push
+git push -u origin main
+```
+Pushed clean — confirmed via `curl https://api.github.com/repos/kmf/dank-ws-copr`: public repo,
+default branch `main`, all 5 local commits present. Live at https://github.com/kmf/dank-ws-copr.
+
+Also installed `copr-cli` (`sudo dnf install -y copr-cli`) in preparation for creating the actual
+COPR project. **Blocked on a manual step**: it needs an API token tied to a Fedora Account
+(generate at copr.fedorainfracloud.org/api/ while logged in, save to `~/.config/copr`) — this
+can't be generated from here, it's tied to your own Fedora account/browser session.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

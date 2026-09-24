@@ -21,10 +21,14 @@ real `mock` build + `dnf install` + smoke test (not just written and hoped): `gt
 live yet** — there is no GitHub repo pushed, no COPR project created, and no CI wiring. The
 verification so far proves the specs *work*, not that the end-to-end distribution goal is met.
 Turning this into the actual artifact needs, roughly in order:
-1. Push this local git history to a real `kmf/dank-ws-copr` GitHub repo (currently just a local
-   `git init`, no remote configured — see PLAN.md "Repos to Enable" and SETUP.md for host setup).
+1. ✅ **Done 2026-09-24**: pushed to a real `kmf/dank-ws-copr` GitHub repo — public, live at
+   https://github.com/kmf/dank-ws-copr. (SSH auth to GitHub as `kmf` needed `github.com`'s host key
+   added to `known_hosts` first — one-time setup, see SETUP.md Step 12.)
 2. Create the actual `kmf/dank-ws-copr` COPR project (copr.fedorainfracloud.org), pointed at that
-   GitHub repo, targeting CentOS Stream 10 (+ EPEL as a dependency source, per below).
+   GitHub repo, targeting CentOS Stream 10 (+ EPEL as a dependency source, per below). `copr-cli`
+   is now installed on `durin`, but **needs an API token tied to your Fedora Account** (generate at
+   copr.fedorainfracloud.org/api/ once logged in, then `copr-cli` picks it up from
+   `~/.config/copr`) — this is a manual step only you can do, not something automatable from here.
 3. Decide and wire up the CI trigger model (Open Question 1) so pushes actually build.
 4. Get the already-verified specs building successfully *in COPR's own build environment*, not just
    locally on `durin`'s mock — COPR's chroot/mock config should match, but this hasn't been
