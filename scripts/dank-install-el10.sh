@@ -92,6 +92,7 @@ Options:
       --dry-run           Print the commands that would run without running them
       --force             Skip the el10 distro check and the known lua/hyprland
                            conflict guard (see script header)
+      --menu              Force the interactive menu even if other flags are given
   -h, --help              Show this help and exit
 
 Examples:
@@ -100,12 +101,87 @@ Examples:
 
   # Hyprland instead, with kitty
   ./dank-install-el10.sh -c hyprland -t kitty -y
+
+  # interactive menu (also runs automatically with no arguments)
+  ./dank-install-el10.sh --menu
 EOF
+}
+
+# ---------------------------------------------------------------------------
+# Basic interactive menu - plain bash `select`, no dialog/whiptail dependency.
+# Runs automatically when the script is invoked with no arguments at all, or
+# explicitly via --menu. Everything downstream (repo/package/greeter logic)
+# is unchanged - this just fills in the same variables flags would.
+# ---------------------------------------------------------------------------
+choose() {
+    # choose <prompt> <option>...  - first option is the recommended/default
+    # one (listed first, as "1)"); bash's `select` re-prompts on a blank
+    # line rather than picking it automatically, so a real numeric choice
+    # is required.
+    local prompt="$1" reply
+    shift
+    local options=("$@")
+    printf '\n%s\n' "$prompt" >&2
+    PS3="> "
+    select reply in "${options[@]}"; do
+        if [ -n "$reply" ]; then
+            printf '%s\n' "$reply"
+            return 0
+        fi
+        echo "Invalid choice, try again." >&2
+    done
+}
+
+confirm() {
+    # confirm <prompt> <default y|n> -> returns 0 for yes, 1 for no
+    local prompt="$1" default="$2" reply
+    while true; do
+        read -r -p "$prompt [$([ "$default" = y ] && echo Y/n || echo y/N)]: " reply
+        reply="${reply:-$default}"
+        case "$reply" in
+        [Yy]*) return 0 ;;
+        [Nn]*) return 1 ;;
+        *) echo "Please answer y or n." >&2 ;;
+        esac
+    done
+}
+
+run_menu() {
+    green "== dank-install-el10 interactive setup =="
+
+    COMPOSITOR=$(choose "Choose a compositor:" niri hyprland miracle-wm)
+    TERMINAL=$(choose "Choose a terminal:" ghostty kitty alacritty)
+
+    if confirm "Install dms-greeter and set it as the login manager?" y; then
+        INSTALL_GREETER=1
+    else
+        INSTALL_GREETER=0
+    fi
+
+    if confirm "Enable the dms systemd --user service after install?" y; then
+        ENABLE_SERVICE=1
+    else
+        ENABLE_SERVICE=0
+    fi
+
+    if confirm "Proceed with dnf without further per-package confirmation (-y)?" y; then
+        ASSUME_YES=1
+    else
+        ASSUME_YES=0
+    fi
+
+    printf '\n'
+    green "Summary: compositor=$COMPOSITOR terminal=$TERMINAL greeter=$([ "$INSTALL_GREETER" = 1 ] && echo yes || echo no) service=$([ "$ENABLE_SERVICE" = 1 ] && echo yes || echo no) assume-yes=$([ "$ASSUME_YES" = 1 ] && echo yes || echo no)"
+    confirm "Continue with these choices?" y || die "aborted at menu confirmation"
 }
 
 # ---------------------------------------------------------------------------
 # Arg parsing
 # ---------------------------------------------------------------------------
+FORCE_MENU=0
+NO_ARGS=0
+[ $# -eq 0 ] && NO_ARGS=1
+
 while [ $# -gt 0 ]; do
     case "$1" in
     -c | --compositor)
@@ -136,6 +212,10 @@ while [ $# -gt 0 ]; do
         FORCE=1
         shift
         ;;
+    --menu)
+        FORCE_MENU=1
+        shift
+        ;;
     -h | --help)
         usage
         exit 0
@@ -145,6 +225,10 @@ while [ $# -gt 0 ]; do
         ;;
     esac
 done
+
+if [ "$NO_ARGS" = "1" ] || [ "$FORCE_MENU" = "1" ]; then
+    run_menu
+fi
 
 case "$COMPOSITOR" in
 niri | hyprland | miracle-wm) ;;
