@@ -6,12 +6,16 @@
 # Kept the libjxl bcond disabled implicitly (no pkgconfig(libjxl*) checked/ported - not needed for
 # hyprland itself, only an optional format).
 # Release: %%autorelease -> 1%%{?dist}; %%changelog: manual (rpmautospec n/a on el10).
-# STATUS: not yet mock-built.
+#
+# UPDATE 2026-09-24: bumped 0.1.5 -> 0.5.1 (`hyprland` requires hyprgraphics >=0.5.1, exact match).
+# SOVERSION changed 0 -> 4 (checked upstream CMakeLists.txt at v0.5.1 directly), fixed the
+# hardcoded `.so.0` in %%files accordingly.
+# STATUS: 0.1.5 was mock-built successfully; this 0.5.1 bump not yet mock-built.
 # ---------------------------------------------------------------------------
 
 %bcond libjxl 0
 Name:           hyprgraphics
-Version:        0.1.5
+Version:        0.5.1
 Release:        1%{?dist}
 Summary:        Graphics library for Hyprland
 
@@ -67,7 +71,7 @@ rm tests/resource/images/hyprland.jpg
 %files
 %license LICENSE
 %doc README.md
-%{_libdir}/libhyprgraphics.so.0
+%{_libdir}/libhyprgraphics.so.4
 %{_libdir}/libhyprgraphics.so.%{version}
 
 %files devel

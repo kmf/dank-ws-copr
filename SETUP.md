@@ -739,6 +739,77 @@ specific to their own build environment/policy rather than a universal breakage,
 attempting rather than treating as a hard stop. `hypridle`/`hyprlock` (optional utilities, Terra
 had specs for both before deletion, not yet recovered) are lower priority than core `hyprland`.
 
+## Step 16 — Correcting the miraclewm research error; mir + miracle-wm forked
+
+User caught a real mistake: the earlier miraclewm assessment ("needs the entire Mir toolkit, none
+of which exists anywhere") was based on checking the wrong Fedora dist-git package names
+(`miraclewm`, `mir-libs`, `miral`, `mircommon` as separate repos - all genuinely 404, but not
+because they don't exist, because they're not how Fedora names things here).
+
+Correct names: **`mir`** (a single 694-line spec building `miral`/`mircommon`/`mirplatform`/
+`mirserver`/`mirwayland`/etc. as subpackages of one SRPM, currently 2.29.0, updated Sep 21 2026) and
+**`miracle-wm`** (hyphenated, currently 0.11.0, also updated Sep 21 2026 - and there's an official
+Fedora Spin built around it). Both genuinely real, actively-maintained Fedora packages. Neither
+branched to epel9/epel10 (checked, same unbranched pattern as everything else this session).
+
+Full BuildRequires sweep for `mir` against el10 turned up a remarkably close match - including
+fairly niche packages already present (`wlcs` the Wayland conformance test suite, `glm-devel`,
+`gflags-devel`, `lttng-ust-devel`, `umockdev` itself is even there... wait, checked again: only
+`pkgconfig(umockdev-1.0)` and `python3-dbusmock` are missing, both used only by `%check` (gtest
+mocking helpers for Mir's own test suite). Fixed by flipping `mir`'s own `%bcond run_tests 1` ->
+`0` rather than trying to package two more test-only dependencies.
+
+`miracle-wm`'s own BuildRequires (beyond the `mir` subpackages) - `json-c`, `libnotify`,
+`nlohmann_json`, `pcre2`, `gtk4`, `gtk4-layer-shell-0` (already built earlier this session for
+ghostty) - all present or already ours.
+
+Neither spec needed `%autorelease`/`%{evr}` fixes - both already use static `Release: 1%{?dist}`.
+Forked both as-is (mir) or near-as-is; `mir`'s SRPM built cleanly, mock build kicked off (large,
+mixed C++/Rust codebase using cargo-rpm-macros for an input-evdev-rs component - real size, running
+in the background while other work continued in parallel chroots via `--uniqueext`).
+
+## Step 17 — hyprland's remaining gaps: xkbcommon/lua bumps, muparser from scratch
+
+Continuing hyprland per the user's "continue through all of it" decision, in parallel with the
+`mir` build (using `mock --uniqueext=<name>` to run independent chroot instances concurrently
+without lock contention - confirmed mock serializes same-named chroots, `--uniqueext` sidesteps it).
+
+- **`libxkbcommon`**: assumed this needed a real, standalone version bump investigation - turned out
+  Fedora rawhide is already at 1.13.1 (>= hyprland's required 1.11.0), unmodified fork. **This
+  REPLACES el10's system libxkbcommon** (1.7.0 -> 1.13.1) rather than a side-by-side compat package,
+  since it's referenced by its plain unversioned pkgconfig name everywhere (niri, mir, hyprland) -
+  the system-wide-bump path the user already approved for mangowm's pixman/xkbcommon situation.
+  Built clean in mock, first try.
+- **`muparser`**: genuinely no distro reference spec found anywhere (checked Fedora rawhide/epel,
+  404). Used openSUSE's official `science/muparser` OBS spec as a *structural* reference (fetched
+  via OBS's public source API) but rewrote it in Fedora/el style rather than copying their
+  soname-versioned package-naming convention (`libmuparser2_3_5`) or their unavailable
+  `muparser-abiversion.diff` patch - not needed, hyprland just wants a plain `pkgconfig(muparser)`.
+  Built clean in mock, first try.
+- **`lua`**: initially assumed this needed a from-scratch spec too (checked `lua5.5`/`lua-5.5`/
+  `lua55` as separate package names, all 404) - Fedora's actual package is simply named `lua`
+  (unversioned) and had *already* been bumped to track 5.5.1. This is the most structurally complex
+  fork this session: an autotools-based build with a live bootstrap flow (builds both the target
+  5.5.1 *and* a compat 5.4.9 library), 6 patches, and 2 small local source files (`mit.txt`,
+  `luaconf.h`) fetched directly from Fedora's git tree rather than lookaside. Forked verbatim,
+  trusting Fedora's working recipe rather than trying to simplify a build this hacky. SRPM built
+  clean; mock build in progress (own `--uniqueext` chroot).
+
+### hyprutils/hyprlang/hyprgraphics: version bumps, with a real lesson learned twice
+`hyprland` needs newer versions of all three than what Fedora rawhide (and thus our earlier forks)
+carry: `hyprutils` 0.7.1 -> 0.14.2, `hyprlang` 0.6.4 -> 0.6.8, `hyprgraphics` 0.1.5 -> 0.5.1 (exact
+match to the floor). Before just bumping `Version:` and calling it done, checked each library's
+*actual* CMakeLists.txt `SOVERSION` at the target tag directly (not assumed) - correctly caught
+two real breaks this way:
+- `hyprutils`: SOVERSION 6 -> 13. Fixed the hardcoded `%{_libdir}/lib%{name}.so.6` in `%files`.
+- `hyprgraphics`: SOVERSION 0 -> 4. Fixed the hardcoded `%{_libdir}/libhyprgraphics.so.0`. Also
+  confirmed its dependency list grew slightly (added `pangocairo`, `libpng`, dropped the `spng`
+  dependency our 0.1.5 fork needed) - checked all new deps against el10 before proceeding.
+- `hyprlang`: SOVERSION unchanged (2 at both versions) - no `%files` fix needed, just the version bump.
+
+None of these three bumps have been mock-built yet as of this write-up (checks/edits done, builds
+queued behind the currently-running `mir`/`lua` builds).
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

@@ -4,11 +4,16 @@
 # Adapted 2026-09-24. Not branched to epel9/epel10 (404 on both). Base utility lib used by nearly
 # every other Hyprland-ecosystem package (hyprlang, hyprcursor, hyprgraphics, aquamarine, hyprland
 # itself). Release: %%autorelease -> 1%%{?dist}; %%changelog: manual (rpmautospec n/a on el10).
-# STATUS: not yet mock-built.
+#
+# UPDATE 2026-09-24: bumped 0.7.1 -> 0.14.2. Fedora rawhide's own spec had gone stale relative to
+# upstream's fast release pace, same issue hit with scenefx/mangowm - `hyprland` requires
+# hyprutils >=0.14.0. Verified the SOVERSION changed too (6 -> 13, checked upstream's CMakeLists.txt
+# at v0.14.2 directly rather than assuming) and fixed the hardcoded `.so.6` in %%files accordingly.
+# STATUS: 0.7.1 was mock-built successfully; this 0.14.2 bump not yet mock-built.
 # ---------------------------------------------------------------------------
 
 Name:           hyprutils
-Version:        0.7.1
+Version:        0.14.2
 Release:        1%{?dist}
 Summary:        Hyprland utilities library used across the ecosystem
 
@@ -49,7 +54,7 @@ Development files for %{name}.
 %license LICENSE
 %doc README.md
 %{_libdir}/lib%{name}.so.%{version}
-%{_libdir}/lib%{name}.so.6
+%{_libdir}/lib%{name}.so.13
 
 %files devel
 %{_includedir}/%{name}/

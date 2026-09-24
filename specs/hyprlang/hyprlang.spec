@@ -3,11 +3,17 @@
 #   https://src.fedoraproject.org/rpms/hyprlang/raw/rawhide/f/hyprlang.spec
 # Adapted 2026-09-24. Not branched to epel9/epel10 (404 on both). Depends on hyprutils (above).
 # Release: %%autorelease -> 1%%{?dist}; %%changelog: manual (rpmautospec n/a on el10).
-# STATUS: not yet mock-built.
+#
+# UPDATE 2026-09-24: bumped BuildRequires hyprutils floor implicitly satisfied by the hyprutils
+# 0.14.2 bump (specs/hyprutils/); hyprlang itself stays at Fedora's 0.6.4 version - wait, actually
+# also bumped 0.6.4 -> 0.6.8 (`hyprland` requires hyprlang >=0.6.7). SOVERSION unchanged (still 2 at
+# v0.6.8, checked upstream CMakeLists.txt directly), so %%files needed no soname fix here, unlike
+# hyprutils/hyprgraphics.
+# STATUS: 0.6.4 was mock-built successfully; this 0.6.8 bump not yet mock-built.
 # ---------------------------------------------------------------------------
 
 Name:           hyprlang
-Version:        0.6.4
+Version:        0.6.8
 Release:        1%{?dist}
 Summary:        The official implementation library for the hypr config language
 

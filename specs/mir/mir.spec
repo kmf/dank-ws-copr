@@ -6,13 +6,17 @@
 # packaging at all (user pushed back - correctly). Full BuildRequires sweep against el10 found
 # almost everything already present, including quite niche ones (`wlcs`, `glm-devel`,
 # `lttng-ust-devel`, `gflags-devel`, `umockdev`) - only `pkgconfig(umockdev-1.0)` and
-# `python3-dbusmock` (both %%check-only, gtest mocking helpers) are missing.
+# `python3-dbusmock` (used only by Mir's own test suite per Fedora's own "# For the tests" comment)
+# are missing - `python3-dbusmock` doesn't exist in Fedora at all, even rawhide.
 #
 # Changes vs. upstream Fedora spec:
-#   - `%%bcond run_tests 1` -> `0`: disables %%check by default, since its two extra test deps
-#     above don't exist on el10. Not otherwise adapted - everything else Fedora's spec does
-#     (cargo-rpm-macros for its Rust input-evdev-rs component, cmake/ninja, subpackage layout)
-#     works as-is on el10 per the dependency sweep.
+#   - `%%bcond run_tests 1` -> `0`: disables %%check by default.
+#   - Wrapped the `pkgconfig(umockdev-1.0)` and `python3-dbusmock` BuildRequires in
+#     `%%if %%{with run_tests}` - Fedora declares them unconditionally despite the comment marking
+#     them test-only (real failure hit first: `mock` failed at dependency-install time on both
+#     before this fix, confirming they were genuinely unconditional, not just documentation).
+#     Not otherwise adapted - everything else Fedora's spec does (cargo-rpm-macros for its Rust
+#     input-evdev-rs component, cmake/ninja, subpackage layout) works as-is on el10.
 # STATUS: not yet mock-built - this is a large, complex package (694-line spec, many subpackages,
 # mixed C++/Rust build), expect this to take real iteration even with everything present.
 # ---------------------------------------------------------------------------
@@ -100,7 +104,9 @@ BuildRequires:  pkgconfig(libinput)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(libxml++-2.6)
 BuildRequires:  pkgconfig(nettle)
+%if %{with run_tests}
 BuildRequires:  pkgconfig(umockdev-1.0) >= 0.6
+%endif
 BuildRequires:  pkgconfig(uuid)
 BuildRequires:  pkgconfig(wayland-server)
 BuildRequires:  pkgconfig(wayland-client)
@@ -128,7 +134,9 @@ BuildRequires:  %{_bindir}/desktop-file-validate
 
 # For the tests
 BuildRequires:  dbus-daemon
+%if %{with run_tests}
 BuildRequires:  python3-dbusmock
+%endif
 BuildRequires:  xorg-x11-server-Xwayland
 
 # Add architectures as verified to work
