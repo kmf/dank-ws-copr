@@ -1,0 +1,123 @@
+# ---------------------------------------------------------------------------
+# Forked/adapted from Fedora's official rawhide dist-git spec for dank-ws-copr:
+#   https://src.fedoraproject.org/rpms/gtk4-layer-shell/raw/rawhide/f/gtk4-layer-shell.spec
+# Adapted 2026-09-24. This package does not exist anywhere on el10 today (checked EPEL, CRB,
+# base, all enabled COPRs, and Terra EL) — it's the single missing dependency blocking `ghostty`
+# (see specs/ghostty/ghostty.spec and SETUP.md Step 9). Every *other* build dependency this
+# package needs is already available on el10 (gcc, meson, vala, gobject-introspection-devel,
+# gtk4-devel, wayland-devel, wayland-protocols-devel, python3-gobject) — this is a clean,
+# self-contained port with no further blockers found.
+#
+# Changes vs. upstream Fedora spec:
+#   - Release: %autorelease -> plain 1%{?dist} (rpmautospec's git-history-based release
+#     calculation isn't usable outside Fedora's own dist-git tooling / isn't installed here:
+#     `rpmautospec-rpm-macros` was not found in any enabled el10 repo).
+#   - %changelog: %autochangelog -> a manual initial entry, for the same reason.
+#
+# STATUS: NOT YET BUILT/TESTED — needs a mock build to confirm meson/vala/gobject-introspection
+# actually produce working output on el10 (should be straightforward; nothing in the dependency
+# chain suggested a version mismatch, unlike mangowm's wlroots problem).
+# ---------------------------------------------------------------------------
+
+# Disable tests on s390x arch
+#   * integration-test-menu-popup FAIL
+%ifnarch s390x
+%bcond_without check
+%else
+%bcond_with check
+%endif
+
+Name:           gtk4-layer-shell
+Version:        1.3.0
+Release:        1%{?dist}
+Summary:        Library to create panels and other desktop components for Wayland
+
+License:        MIT
+URL:            https://github.com/wmww/gtk4-layer-shell
+Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
+
+BuildRequires:  gcc
+BuildRequires:  meson
+BuildRequires:  vala
+BuildRequires:  pkgconfig(gobject-introspection-1.0)
+BuildRequires:  pkgconfig(gtk4)
+BuildRequires:  pkgconfig(wayland-client) >= 1.10.0
+BuildRequires:  pkgconfig(wayland-protocols) >= 1.16
+BuildRequires:  pkgconfig(wayland-scanner) >= 1.10.0
+BuildRequires:  pkgconfig(wayland-server) >= 1.10.0
+%if %{with check}
+BuildRequires:  python3-gobject
+### For smoke tests
+# BuildRequires:  luarocks
+# BuildRequires:  pkgconfig(luajit)
+%endif
+
+%description
+A library for using the Layer Shell and Session Lock Wayland protocols with
+GTK4. This Library is compatible with C, C++ and any language that supports
+GObject introspection files (Python, Vala, etc).
+
+The Layer Shell protocol allows building desktop shell components such as
+panels, notifications and wallpapers. It can be used to anchor your windows to a
+corner or edge of the output, or stretch them across the entire output.
+
+The Session Lock protocol allows building lock screens.
+
+%package        devel
+Summary:        Development files for %{name}
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+
+%description    devel
+Development files for %{name}.
+
+%prep
+%autosetup
+
+%build
+# Disable smoke tests since they introduce two problems:
+#   1. They need the examples which will be installed and check-files fails with
+#      the error 'Installed (but unpackaged) file(s) found'
+#   2. The lua-lgi package is based on the (latest) release from 2017 which does
+#      not work with GTK4.
+# See also:
+#   - https://github.com/wmww/gtk4-layer-shell/issues/28
+#   - https://github.com/wmww/gtk4-layer-shell/issues/32#issuecomment-2089302515
+#   - https://github.com/lgi-devs/lgi/issues/225
+#   - https://github.com/lgi-devs/lgi/issues/278
+%meson \
+    %if %{with check}
+    -Dsmoke-tests=false \
+    -Dtests=true \
+    %endif
+    %{nil}
+%meson_build
+
+%install
+%meson_install
+
+%if %{with check}
+%check
+%meson_test
+%endif
+
+%files
+%license LICENSE
+%doc README.md CHANGELOG.md
+%{_libdir}/girepository-1.0/Gtk4LayerShell-*.typelib
+%{_libdir}/girepository-1.0/Gtk4SessionLock-*.typelib
+%{_libdir}/lib%{name}.so.%{version}
+%{_libdir}/lib%{name}.so.0
+
+%files devel
+%{_datadir}/gir-1.0/Gtk4LayerShell-*.gir
+%{_datadir}/gir-1.0/Gtk4SessionLock-*.gir
+%{_datadir}/vala/vapi/%{name}-*
+%{_includedir}/%{name}/
+%{_libdir}/lib%{name}.so
+%{_libdir}/liblayer-shell-preload.so
+%{_libdir}/pkgconfig/*.pc
+
+%changelog
+* Wed Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 1.3.0-1
+- Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
+- Replaced %%autorelease/%%autochangelog (rpmautospec) with static Release/changelog

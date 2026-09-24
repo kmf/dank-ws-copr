@@ -286,6 +286,55 @@ shape of this project's choices. Options, roughly in order of effort:
 
 This is a project-direction call, not something to decide unilaterally — flagging back to the user.
 
+## Step 9 — Fork/adapt Terra + Fedora specs into our own repo (decision: option 3 from prior summary)
+
+User decided: fork/adapt third-party specs into our own COPR for full control, rather than
+depending on Terra's live infra or reinventing from scratch. Scope: Tier 1-3 stay on the
+already-working `avengemedia` COPRs (no reason to duplicate what already works); this pass focused
+on the two most tractable Tier 4 gaps — **ghostty** and **mangowm** — plus whatever they needed.
+
+### Vendored so far (under `specs/` in this repo, see `specs/NOTICE.md` for attribution)
+- `specs/ghostty/ghostty.spec` — forked from Terra EL, adapted:
+  - Dropped `anda-srpm-macros` (Terra/Anda build-system-specific, not available/needed here)
+  - `zig0.15` -> `zig` (el10's EPEL ships a single current `zig` package; Terra versions it separately)
+  - Rewrote `%install` to use the official EPEL10 `zig-rpm-macros` package's `%zig_install` macro
+    (verified its macro definitions via `rpm -ql zig-rpm-macros` / `/usr/lib/rpm/macros.d/macros.zig`)
+    instead of Terra's Anda-only `%{zig_build_target}`, translating release-mode/flags as closely
+    as possible to the original invocation.
+  - **Real gap found**: `pkgconfig(gtk4-layer-shell-0)` — confirmed absent from every enabled repo
+    (checked EPEL/CRB/base/all COPRs) and absent from Terra EL too (they don't package it either,
+    at least not yet in the `el10` branch).
+- `specs/gtk4-layer-shell/gtk4-layer-shell.spec` — forked from **Fedora's own rawhide dist-git**
+  (not Terra — Terra doesn't have it), to unblock ghostty. Adapted: replaced `%autorelease`/
+  `%autochangelog` (Fedora's rpmautospec tooling, not installed here — checked, `rpmautospec-rpm-macros`
+  missing) with a static `Release: 1%{?dist}` and manual changelog entry.
+  **Every other build dependency checked and confirmed present on el10**: `gcc`, `meson`, `vala`,
+  `gobject-introspection-devel`, `gtk4-devel`, `wayland-devel`, `wayland-protocols-devel`,
+  `python3-gobject`. This looks like a clean, low-risk port with nothing else in the way.
+- `specs/mangowm/mangowm.spec` — forked **verbatim, not adapted** from Terra EL; kept as reference
+  only. **Deprioritized**: needs `pkgconfig(wlroots-0.19)` (el10's EPEL only has 0.18.2) — checked
+  whether Terra EL packages a newer wlroots themselves (`anda/lib/` listing) and **they don't
+  either**, meaning this spec may not even be buildable within Terra's own repo, not just ours.
+  Also needs `scenefx-devel`, which Terra *does* package (not yet ported here). Building a newer
+  wlroots ourselves risks colliding with the 0.18.2 that `niri` and other consumers already use on
+  this host — real engineering risk, not just missing-spec busywork. Sequenced below ghostty.
+
+### Also checked this pass
+- `layer-shell-qt` exists on el10 (Qt's own layer-shell binding) — unrelated to GTK's, doesn't help.
+- No `gtk-layer-shell` (GTK3 variant) exists on el10 either, in case that was a smaller first step —
+  it isn't smaller, both are equally unported; went straight for the GTK4 one ghostty actually needs.
+
+### Not yet done (deliberately out of scope this pass)
+- No mock build attempted yet for either adapted spec — `mock` package is available but not
+  installed on `durin` (see Step 7). Installing it and doing a real `mock -r <el10 config>`
+  build of `gtk4-layer-shell` then `ghostty` is the natural next verification step, since both
+  spec adaptations above are informed-but-unverified translations, not tested output.
+- Hyprland's dependency libs (`hyprutils`, `hyprlang`, `hyprgraphics`, etc., which Terra does carry
+  specs for) were not forked this pass, since Hyprland core itself is deprioritized (Step 8) — no
+  point porting libraries for a compositor we're not currently planning to ship.
+- `breakpad` and `dank-material-shell` specs exist in Terra too but were **not** forked — Tier 1-3
+  already work via `avengemedia` COPRs and don't need a second implementation.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
