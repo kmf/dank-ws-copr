@@ -9,8 +9,14 @@
 #
 # UPDATE 2026-09-24: bumped 0.1.5 -> 0.5.1 (`hyprland` requires hyprgraphics >=0.5.1, exact match).
 # SOVERSION changed 0 -> 4 (checked upstream CMakeLists.txt at v0.5.1 directly), fixed the
-# hardcoded `.so.0` in %%files accordingly.
-# STATUS: 0.1.5 was mock-built successfully; this 0.5.1 bump not yet mock-built.
+# hardcoded `.so.0` in %%files accordingly. Real failed-build finding, fixed: 0.5.1's own deps
+# changed too - added `mesa-libGLES-devel` (new `find_package(OpenGL COMPONENTS GLES3)` -
+# confirmed missing via a real build failure: "Could NOT find OpenGL... GLES3"),
+# `pkgconfig(pangocairo)`, `pkgconfig(librsvg-2.0)`; dropped `pkgconfig(spng)` (no longer used,
+# replaced by `pkgconfig(libpng)` + librsvg) - all checked against 0.5.1's actual CMakeLists.txt,
+# not assumed unchanged from 0.1.5.
+# STATUS: 0.1.5 was mock-built successfully; this 0.5.1 bump not yet mock-built (first attempt hit
+# the missing-GLES3 error above; retrying with the fix).
 # ---------------------------------------------------------------------------
 
 %bcond libjxl 0
@@ -28,13 +34,16 @@ ExcludeArch:    %{ix86}
 
 BuildRequires:  cmake
 BuildRequires:  gcc-c++
+BuildRequires:  mesa-libGLES-devel
 BuildRequires:  pkgconfig(hyprlang)
 BuildRequires:  pkgconfig(cairo)
+BuildRequires:  pkgconfig(pangocairo)
 BuildRequires:  pkgconfig(hyprutils)
 BuildRequires:  pkgconfig(libjpeg)
 BuildRequires:  pkgconfig(libwebp)
 BuildRequires:  pkgconfig(libmagic)
-BuildRequires:  pkgconfig(spng)
+BuildRequires:  pkgconfig(libpng)
+BuildRequires:  pkgconfig(librsvg-2.0)
 
 %if %{with libjxl}
 BuildRequires:  pkgconfig(libjxl)

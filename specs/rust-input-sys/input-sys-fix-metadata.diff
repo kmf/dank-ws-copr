@@ -1,0 +1,20 @@
+--- input-sys-1.18.0/Cargo.toml	1970-01-01T00:00:01+00:00
++++ input-sys-1.18.0/Cargo.toml	2025-11-29T20:45:30.924223+00:00
+@@ -30,7 +30,7 @@
+ path = "src/lib.rs"
+ 
+ [build-dependencies.bindgen]
+-version = "0.69"
++version = ">=0.71,<0.73"
+ optional = true
+ 
+ [build-dependencies.proc-macro2]
+@@ -42,7 +42,7 @@
+ optional = true
+ 
+ [features]
+-default = ["libinput_1_21"]
++default = ["update_bindings"]
+ libinput_1_11 = []
+ libinput_1_14 = []
+ libinput_1_15 = []
