@@ -6,20 +6,19 @@
 # packaging at all (user pushed back - correctly). Full BuildRequires sweep against el10 found
 # almost everything already present, including quite niche ones (`wlcs`, `glm-devel`,
 # `lttng-ust-devel`, `gflags-devel`) - only `pkgconfig(umockdev-1.0)` and `python3-dbusmock` were
-# missing. Forked `umockdev` too (specs/umockdev/) - `python3-dbusmock` doesn't exist in Fedora at
-# all, even rawhide, and stayed missing.
+# missing. Both forked too (specs/umockdev/, specs/python-dbusmock/) - `python3-dbusmock` was
+# wrongly assumed unavailable in Fedora at first (checked the wrong dist-git path: the binary RPM
+# is `python3-dbusmock` but the dist-git repo is named `python-dbusmock`).
 #
 # Changes vs. upstream Fedora spec:
 #   - `%%bcond run_tests 1` -> `0`: disables the actual %%check/ctest run by default.
-#   - `python3-dbusmock` BuildRequires wrapped in `%%if %%{with run_tests}` - it's genuinely
-#     test-execution-only (a pure-Python dbus mocking helper used by tests when they actually run),
-#     confirmed by it never surfacing as a configure-time (`%%conf`/CMake) blocker.
-#   - `pkgconfig(umockdev-1.0)` BuildRequires kept UNCONDITIONAL, matching Fedora - tried making it
-#     conditional on run_tests too at first (same reasoning as dbusmock), but that was wrong: Mir's
-#     own `tests/CMakeLists.txt` calls `pkg_check_modules(... umockdev-1.0 ...)` unconditionally at
-#     *configure* time regardless of whether tests later run, so it must always be installed even
-#     with run_tests=0 - a real failed build first, twice (before umockdev existed at all, and
-#     again right after making it conditional), confirmed this the hard way.
+#   - BOTH `pkgconfig(umockdev-1.0)` and `python3-dbusmock` BuildRequires kept UNCONDITIONAL,
+#     matching Fedora exactly - tried making each conditional on run_tests in turn (reasoning: they
+#     read as test-only per Fedora's own "# For the tests" comment), and got a real failed build
+#     both times: Mir's own `tests/CMakeLists.txt` calls `pkg_check_modules(...umockdev-1.0...)`
+#     AND does a Python `import dbusmock` check, both unconditionally at CMake *configure* time
+#     regardless of whether tests actually run later - so both must always be installed even with
+#     run_tests=0. The "# For the tests" comment describes *why* they're needed, not *when*.
 #     Not otherwise adapted - everything else Fedora's spec does (cargo-rpm-macros for its Rust
 #     input-evdev-rs component, cmake/ninja, subpackage layout) works as-is on el10.
 # STATUS: not yet mock-built successfully - large, complex package (694-line spec, many
@@ -138,9 +137,7 @@ BuildRequires:  %{_bindir}/desktop-file-validate
 
 # For the tests
 BuildRequires:  dbus-daemon
-%if %{with run_tests}
 BuildRequires:  python3-dbusmock
-%endif
 BuildRequires:  xorg-x11-server-Xwayland
 
 # Add architectures as verified to work
