@@ -28,6 +28,13 @@
 Name:           ghostty
 Version:        1.3.1
 Release:        3%{?dist}
+# %%{evr} isn't a defined RPM macro on el10 (`rpm --eval '%%{evr}'` just echoes it back literally -
+# it's a newer Fedora-only convenience macro, not yet in el10's redhat-rpm-config/rpm). Discovered
+# the hard way: rpmbuild's "Possible unexpanded macro" warnings on every `%%{evr}` use throughout
+# this spec turned out to be real, not cosmetic - it got baked into the built RPM's Requires as the
+# literal string "%%{evr}", making every subpackage genuinely uninstallable (`nothing provides
+# ghostty-terminfo = %%{evr}`). Defining it ourselves fixes every use below without touching them.
+%global evr %{version}-%{release}
 Summary:        A fast, native terminal emulator written in Zig.
 License:        MIT AND MPL-2.0 AND OFL-1.1 AND (WTFPL OR CC0-1.0) AND Apache-2.0
 URL:            https://ghostty.org/
@@ -60,6 +67,10 @@ BuildRequires:  pkgconfig(freetype2)
 BuildRequires:  pkgconfig(fontconfig)
 BuildRequires:  pkgconfig(gtk4)
 BuildRequires:  pkgconfig(gtk4-layer-shell-0)
+# NOTE: harfbuzz-devel ends up in the chroot regardless of whether we list it directly - gtk4
+# (via pango-devel) already Requires pkgconfig(harfbuzz) >= 2.6.0 transitively, so simply omitting
+# our own BuildRequires does NOT keep it out (tried that first; didn't work - see SETUP.md Step 13
+# for the real fix, which lives in %%install's zig_build_options instead of here).
 BuildRequires:  pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(libadwaita-1)
 BuildRequires:  pkgconfig(libpng)
@@ -221,11 +232,22 @@ tar --zstd -xf %{SOURCE2} -C "%{_zig_cache_dir}"
 %global zig_install_options -Dversion-string="%{version}" -Dstrip=false -Dpie=true -Demit-docs -Demit-themes=false
 # el10's harfbuzz-devel (8.4.0) is too old for ghostty's bindings, which expect the newer
 # harfbuzz it vendors itself (11.0.0, fetched into the Source2 vendor cache above) - discovered
-# via a real build failure (`error: ... has no member named 'HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES'`,
-# see SETUP.md Step 10). `-fno-sys=<name>` is Zig's build-runner flag (see
-# /usr/lib/zig/compiler/build_runner.zig) to force building the vendored copy of a dependency
-# instead of linking the system one ghostty's build.zig would otherwise prefer by default.
-%global zig_build_options -fno-sys=harfbuzz
+# via a real build failure (`error: ... has no member named 'HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES'`).
+# `-fno-sys=<name>` is Zig's build-runner flag (see /usr/lib/zig/compiler/build_runner.zig) to
+# force building the vendored copy of a dependency instead of linking the system one.
+#
+# All six of freetype/fontconfig/harfbuzz/libpng/zlib/oniguruma are listed, not harfbuzz alone -
+# real, isolated finding (SETUP.md Step 13): a plain network-enabled `zig build` with ONLY
+# `-fno-sys=harfbuzz` succeeds, because outside `--system` mode every one of these defaults to
+# vendored anyway (Config.zig's systemIntegrationOption default is `system_package_mode`, which is
+# only true when `--system` is passed - i.e. only in a real mock/COPR build). Passing only
+# `-fno-sys=harfbuzz` under mock's `--system` mode reproduces the exact same harfbuzz cimport
+# error (confirmed by isolating the two flags independently), because the other five silently
+# default back to "prefer system" the moment `--system` is active, whatever knock-on effect that
+# has. Passing `-fno-sys=` for all six replicates the known-working non-`--system` configuration
+# exactly, and was verified to build 186/186 steps successfully under `--system` mode too, with a
+# real working `ghostty --version` binary produced.
+%global zig_build_options -fno-sys=harfbuzz -fno-sys=freetype -fno-sys=fontconfig -fno-sys=libpng -fno-sys=zlib -fno-sys=oniguruma
 %zig_install
 
 # Don't conflict with ncurses-term on F42 and up

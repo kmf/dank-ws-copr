@@ -534,6 +534,91 @@ COPR project. **Blocked on a manual step**: it needs an API token tied to a Fedo
 (generate at copr.fedorainfracloud.org/api/ while logged in, save to `~/.config/copr`) — this
 can't be generated from here, it's tied to your own Fedora account/browser session.
 
+## Step 13 — ghostty: the Zig lazy-dependency issue, fully solved
+
+Picked up exactly where Step 10 left off: `harfbuzz` (a *nested* lazy dependency, declared inside
+ghostty's own `pkg/harfbuzz/build.zig.zon`, not the project root) silently failed to get its
+vendored include path attached under mock's offline `--system` mode, falling back to el10's
+too-old system `harfbuzz-devel` headers.
+
+### Ruling out `zig build --fetch` as the vendoring mechanism
+Tried `zig build --fetch` directly against ghostty's real build graph (the theory: it should
+"properly" walk lazy deps, unlike a flat per-URL loop). Result: only fetched 5.4MB, vs. 559MB from
+the flat-loop approach — confirms upstream's own `fetch-zig-cache.sh` comment
+("`zig build --fetch` doesn't fetch transitive dependencies... A future Zig version will hopefully
+fix" this) is accurate. The flat per-URL loop was already the *right* approach; abandoned this path.
+
+### Isolating the real root cause
+Extracted the actual `ghostty-1.3.1.tar.gz`, and ran a real, **network-enabled, non-`--system`**
+`zig build install` locally (installing all real BuildRequires by hand first). **It succeeded
+completely** — produced a working `ghostty` binary, with harfbuzz correctly built from vendored
+11.0.0 source (confirmed: the actual `zig build-lib` invocation line included
+`-I <cache>/p/<harfbuzz-hash>/src`).
+
+This proved the vendor tarball/cache content was never the problem. Re-ran the *exact same* build,
+adding only `--system <cache>/p` (network still available) - **reproduced the identical harfbuzz
+error immediately**. This cleanly isolates the cause to Zig 0.15.2's `--system` flag itself, not
+missing files, not our spec, not the vendoring approach.
+
+Tried patching the nested `pkg/harfbuzz/build.zig.zon`'s `.lazy = true` -> `.lazy = false` (theory:
+laziness itself was the issue) - **no change**, ruled out.
+
+### The actual mechanism, empirically confirmed
+Uninstalled `harfbuzz-devel` from the host entirely and re-ran the same `--system`-mode build:
+**the harfbuzz error vanished immediately**, replaced only by unrelated "package not installed"
+errors from other things collaterally removed. Reinstalling everything *except* re-testing with
+all six of ghostty's optional "system-preferred" C dependencies
+(`harfbuzz`/`freetype`/`fontconfig`/`libpng`/`zlib`/`oniguruma` - the exact list in ghostty's own
+`src/build/Config.zig`) explicitly forced to vendored via `-fno-sys=<name>` for *all six*, not just
+`harfbuzz` alone, produced a **clean, complete, 186/186-step successful build** under `--system`
+mode, with a working `ghostty --version` binary.
+
+**Root cause, precisely**: outside `--system` mode, all six of these dependencies default to
+vendored automatically (their shared default is `b.graph.system_package_mode`, which is only
+`true` when `--system` is passed). A plain build with only `-fno-sys=harfbuzz` "works" in that
+case because the other five were *already* going to be vendored regardless. Under `--system` mode,
+all six flip their *default* to "prefer system" - so forcing only harfbuzz off system while leaving
+the other five on their new (system-preferring) default reproduces a different-but-confusingly-
+identical-looking cimport failure, because ghostty's own harfbuzz Zig module transitively imports
+`freetype.zig` (see `pkg/harfbuzz/build.zig`'s `.imports = &.{ ... freetype ... }`), so a
+freetype system/vendored mismatch cascades into a harfbuzz-attributed error. The fix is to pass
+`-fno-sys=` for the full set, replicating the known-good non-`--system` default configuration
+exactly, not just the one dependency the error message happened to name.
+
+### Applied to the spec, verified in real mock
+- `specs/ghostty/ghostty.spec` `%install`: `zig_build_options` now passes
+  `-fno-sys=harfbuzz -fno-sys=freetype -fno-sys=fontconfig -fno-sys=libpng -fno-sys=zlib -fno-sys=oniguruma`
+  (was just `-fno-sys=harfbuzz`).
+- Kept `BuildRequires: pkgconfig(harfbuzz)` (tried removing it first as an alternate fix - doesn't
+  help, since `gtk4-devel` -> `pango-devel` already `Requires: pkgconfig(harfbuzz) >= 2.6.0`
+  transitively, so it's unconditionally present in the chroot regardless of our own declaration).
+- **New, separate bug found and fixed along the way**: `%{evr}` (used throughout the spec's
+  `Requires:`/`Obsoletes:` lines, e.g. `Requires: %{name}-terminfo = %{evr}`) is **not a defined
+  RPM macro on el10** - confirmed via `rpm --eval '%%{evr}'` echoing the literal text back
+  unchanged. It's a newer Fedora-only convenience macro not yet in el10's `redhat-rpm-config`. The
+  "Possible unexpanded macro" warnings rpmbuild had been printing on every use of `%{evr}` since
+  this spec was first forked (Step 9) turned out to be **real, not cosmetic** - it silently baked
+  the literal string `%{evr}` into the built RPM's dependency metadata, making every subpackage
+  genuinely uninstallable (`nothing provides ghostty-terminfo = %{evr}`). Fixed with one line:
+  `%global evr %{version}-%{release}` right after `Release:` - resolves every use throughout the
+  spec without touching them individually.
+
+### Final verification - real build, real install, real smoke test
+```
+sg mock -c "mock -r centos-stream+epel-10-x86_64 --addrepo=file:///.../built-rpms --rebuild ghostty-1.3.1-3.el10.src.rpm"
+# INFO: Done
+sudo dnf install -y built-rpms/ghostty-1.3.1-3.el10.x86_64.rpm built-rpms/ghostty-terminfo-1.3.1-3.el10.noarch.rpm
+rpm -V ghostty ghostty-terminfo    # -> clean
+ldd /usr/bin/ghostty | grep "not found"    # -> clean
+ghostty --version
+# Ghostty 1.3.1 / channel: stable / Zig 0.15.2 / GTK 4.20.3 / libadwaita 1.8.4 / ...
+```
+**ghostty is now fully resolved** - built, installed, verified. 17 RPMs produced (main package,
+`-terminfo`, `-devel`, shell completions for bash/fish/zsh, `-vim`/`-neovim`/`-kio`/`-nautilus`/
+`-bat-syntax`/`-shell-integration`, `libghostty-vt` + `-devel`, plus debuginfo/debugsource). This is
+the 7th verified-working spec this session, and resolves the last open Tier 4 blocker that wasn't
+either a hard external gap (miraclewm) or a deliberate deprioritization (hyprland).
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
