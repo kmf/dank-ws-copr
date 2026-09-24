@@ -359,6 +359,16 @@ if [ "$ENABLE_SERVICE" = "1" ]; then
         printf '[dry-run] systemctl --user enable --now dms\n'
     else
         systemctl --user enable --now dms || yellow "Could not enable dms --user service now; enable it after your next login."
+        # WantedBy=graphical-session.target in dms.service means plain
+        # `enable` is upstream's whole mechanism (matches dankinstall's own
+        # docs: "The installer runs systemctl --user enable --now dms") - but
+        # verify it actually stuck rather than trust a zero exit status, since
+        # a stale/foreign --user manager (e.g. no active graphical session or
+        # bus reachable yet) can accept the command without the enablement
+        # symlink actually landing in ~/.config/systemd/user/.
+        if [ "$(systemctl --user is-enabled dms 2>/dev/null)" != "enabled" ]; then
+            yellow "dms.service did not end up enabled - run 'systemctl --user enable --now dms' yourself after logging into $COMPOSITOR."
+        fi
     fi
 fi
 
