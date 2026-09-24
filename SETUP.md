@@ -437,6 +437,82 @@ Per PLAN.md's original open question ("un-branched vs. real port"), checked dire
   lazy-dependency issue. **Not yet forked into `specs/` or attempted in mock this session** — next
   candidate for the same treatment gtk4-layer-shell got.
 
+## Step 11 — greetd: forked, built, installed, verified — full end-to-end success
+
+Followed the exact same fork-from-Fedora-rawhide pattern as gtk4-layer-shell (Step 10), but hit two
+more real dependency gaps along the way, each resolved the same way: check if Fedora already has a
+spec for it (it did, both times), fork, adapt, build, retry.
+
+### Attempt 1: greetd alone -> 4 unmet crate requirements
+```
+sg mock -c "mock -r centos-stream+epel-10-x86_64 --addrepo=file:///.../built-rpms --rebuild greetd-0.10.3-1.el10.src.rpm"
+```
+`%generate_buildrequires`/`%cargo_generate_buildrequires` (dynamic BR resolution against the real
+Cargo.lock) failed with:
+```
+Problem 1-3: nothing provides crate(greetd_ipc/{default,sync-codec,tokio-codec}) ...
+Problem 4: nothing provides crate(rpassword/default) >= 5.0.0 with < 6.0.0
+```
+Two genuinely new gaps, not the `pam-sys`/`enquote` ones from Step 10 (those resolved cleanly this
+time - confirms the earlier fork worked):
+- **`greetd_ipc`**: greetd's own `Cargo.toml` uses a local *path* dependency
+  (`{ path = "../greetd_ipc" }`, same source tree) for this, but `cargo2rpm`'s BR generator still
+  emits an external `crate(greetd_ipc/...)` requirement regardless of path-vs-registry origin.
+  Checked whether Fedora's own greetd build has the same issue: it does, and solves it with a
+  **separate `rust-greetd_ipc` package** (real, because `greetd_ipc` is independently published on
+  crates.io too, so rust2rpm can auto-generate a spec for it).
+- **`rpassword`**: extracted the *actual* release tarball (not GitHub's live `master`, which could
+  drift from the tagged release) and checked `Cargo.lock` directly: pins `rpassword = 5.0.1` exactly.
+  el10 only has `rust-rpassword` 7.5.4 (EPEL) - a semver-incompatible major bump. Checked how
+  Fedora's own build handles it: a **`rust-rpassword5` compat package** (side-by-side-installable
+  by design, already branched to epel9, just not epel10 yet - an established pattern, not exotic).
+
+(Also checked whether `nix` would hit the same issue - Cargo.lock pins `0.27.1`, el10 only has
+`0.31.3`, a 0.x "different minor = incompatible" situation by Cargo's semver rules - but the solver
+did NOT flag it as unmet, so left it alone rather than fixing a non-problem.)
+
+### Forked two more packages, same treatment as before
+- `specs/rust-greetd_ipc/rust-greetd_ipc.spec` - forked from Fedora rawhide (404 on epel9/epel10),
+  adapted (`%autorelease`/`%autochangelog` -> static). Built clean in mock, first try.
+- `specs/rust-rpassword5/rust-rpassword5.spec` + its `rpassword-fix-metadata-auto.diff` patch -
+  forked from Fedora rawhide (branched to epel9, not epel10), same adaptation. Built clean in mock,
+  first try.
+
+### Attempt 2: greetd with all four crates available -> SUCCESS
+```
+createrepo_c --update built-rpms/    # after copying in the two new crate RPMs
+sg mock -c "mock -r centos-stream+epel-10-x86_64 --addrepo=file:///.../built-rpms --rebuild greetd-0.10.3-1.el10.src.rpm"
+```
+**`INFO: Done`, no errors.** Produced `greetd`, `greetd-selinux`, `greetd-fakegreet`,
+`-debuginfo`/`-debugsource` - all in `built-rpms/` (gitignored, not committed).
+
+### Full smoke test - real install, not just a build
+```
+sudo dnf install -y built-rpms/greetd-0.10.3-1.el10.x86_64.rpm built-rpms/greetd-selinux-0.10.3-1.el10.noarch.rpm
+rpm -V greetd greetd-selinux        # -> clean, no output
+ldd /usr/bin/greetd | grep "not found"    # -> clean
+ldd /usr/bin/agreety | grep "not found"   # -> clean
+greetd --help                              # -> works
+rpm -q --provides greetd | grep service    # -> service(graphical-login) = greetd
+```
+Installed cleanly (sysusers-based `greetd` user/group creation produced harmless ordering warnings
+during the scriptlet, self-resolved immediately after - not a real problem).
+
+**Confirmed the original blocker is completely gone**:
+```
+sudo dnf install --assumeno dms-greeter
+# -> Dependencies resolved. Installing: dms-greeter 1:1.6.2-1.el10 ... (no errors)
+```
+This was the exact `nothing provides greetd` failure from the very start of this session (see
+Step 6). **It's fully resolved now** - `dms-greeter`/`dms-greeter-git` can install today given these
+5 forked packages (`greetd`, `greetd-selinux` as its subpackage, `rust-greetd_ipc`,
+`rust-rpassword5`, plus the earlier `rust-pam-sys`/`rust-enquote`).
+
+### Package count summary for this thread of work
+6 new specs forked and verified-buildable this session: `gtk4-layer-shell`, `rust-pam-sys`,
+`rust-enquote`, `rust-greetd_ipc`, `rust-rpassword5`, `greetd`. All under `specs/` with attribution
+headers; none uploaded to any actual COPR yet (see PLAN.md's restated goal below).
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

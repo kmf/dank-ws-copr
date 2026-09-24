@@ -1,10 +1,41 @@
 # Dank Material Shell — CentOS Stream 10 Packaging
 
-## Goal
-Build and host DMS shell + dependency RPMs for **CentOS Stream 10**, hosted on GitHub, built via COPR.
+## Goal — the actual deliverable, stated plainly
+The end goal is **not** "have working spec files somewhere" — it's a real, live **COPR repo
+(`kmf/dank-ws-copr`)** that any CentOS Stream 10 machine can add and install DMS + its dependency
+chain from, the same way one would `dnf copr enable avengemedia/danklinux` today. Concretely, done
+looks like:
 
-- Repo: `gh kmf/dank-ws-copr`
-- Build host: `durin` (Tailscale-connected, CentOS Stream 10)
+```
+dnf copr enable kmf/dank-ws-copr
+dnf install dms dms-greeter quickshell   # (and whatever else has been ported)
+```
+actually working on a fresh CentOS Stream 10 box — not just "the SRPM built in a local mock chroot
+on durin". Everything else in this doc (the dependency tree, the blockers table, the fork-vs-adopt
+decision on Terra) is in service of that one artifact.
+
+**Where things stand**: as of 2026-09-24, `specs/` in this repo (`kmf/dank-ws-copr`, currently local
+to `durin` only — see below) holds 6 forked/adapted spec packages, each individually verified via a
+real `mock` build + `dnf install` + smoke test (not just written and hoped): `gtk4-layer-shell`,
+`rust-pam-sys`, `rust-enquote`, `rust-greetd_ipc`, `rust-rpassword5`, `greetd`. **None of this is
+live yet** — there is no GitHub repo pushed, no COPR project created, and no CI wiring. The
+verification so far proves the specs *work*, not that the end-to-end distribution goal is met.
+Turning this into the actual artifact needs, roughly in order:
+1. Push this local git history to a real `kmf/dank-ws-copr` GitHub repo (currently just a local
+   `git init`, no remote configured — see PLAN.md "Repos to Enable" and SETUP.md for host setup).
+2. Create the actual `kmf/dank-ws-copr` COPR project (copr.fedorainfracloud.org), pointed at that
+   GitHub repo, targeting CentOS Stream 10 (+ EPEL as a dependency source, per below).
+3. Decide and wire up the CI trigger model (Open Question 1) so pushes actually build.
+4. Get the already-verified specs building successfully *in COPR's own build environment*, not just
+   locally on `durin`'s mock — COPR's chroot/mock config should match, but this hasn't been
+   confirmed with a real COPR build yet.
+5. Validate the actual `dnf copr enable kmf/dank-ws-copr && dnf install ...` flow works, ideally on
+   a machine other than `durin`.
+
+- Repo: `gh kmf/dank-ws-copr` (**local git repo only so far — not yet pushed to GitHub**)
+- Build host: `durin` (Tailscale-connected, CentOS Stream 10) — used for spec development and
+  local `mock` verification; the actual COPR builds happen on Copr's own infrastructure once step 2
+  above is done, not on `durin` itself
 - Commit convention: Conventional Commits
 - EPEL is enabled on the build host as a dependency source (CRB + epel-release), not a separate packaging target — we're not double-tracking EPEL10 and CentOS-Stream-10 as parallel goals.
 
@@ -53,7 +84,7 @@ commands/output. Several original entries were stale._
 | Package | Issue | Likely fix path |
 |---|---|---|
 | niri | ~~COPR doesn't install on el10~~ **RESOLVED — false alarm.** `dnf install niri` resolves and installs cleanly today (only extra dep is `libseat` from EPEL). Confirmed via dry-run + smoke test. | None — ship it |
-| greetd | **Confirmed the good case**: exists at Fedora `rawhide`/`f41`/`f42` dist-git but 404s at `epel9`/`epel10` — genuinely just never branched, not broken/unported. All non-crate BuildRequires (`cargo-rpm-macros`, `scdoc`, `selinux-policy-devel`, etc.) already on el10. Of its 11 Rust crate deps, 9 already exist as `rust-*-devel` packages; only `pam-sys` and `enquote` (both tiny leaf crates) are missing. See SETUP.md Step 10. Not yet forked into `specs/` or mock-built. | Fork the Fedora rawhide spec; package `pam-sys`/`enquote` crates first (small) |
+| greetd | ✅ **RESOLVED — built, installed, and verified working.** Forked from Fedora rawhide (unbranched for EPEL, not broken/unported). Needed 4 supporting crate packages forked the same way, all also just unbranched Fedora packages: `rust-pam-sys`, `rust-enquote`, `rust-greetd_ipc` (path-dep quirk in cargo2rpm's BR generation), `rust-rpassword5` (greetd's Cargo.lock pins an old major version). Real mock build succeeded, real `dnf install` succeeded, `rpm -V`/`ldd`/`greetd --help` all clean. **Confirmed the original hard blocker is gone**: `sudo dnf install --assumeno dms-greeter` now resolves cleanly end-to-end. See SETUP.md Step 11 for the full trail. | Done — upload these 6 specs to the actual COPR (see restated Goal below) |
 | ghostty | Needs Zig toolchain. **Confirmed available**: `zig-0.15.2` ships from official EPEL10. Spec forked/adapted from Terra EL into `specs/ghostty/ghostty.spec` (SETUP.md Step 9). Its one dependency gap, `gtk4-layer-shell`, is now **solved and verified**: forked from Fedora rawhide, **actually mock-built successfully** in a real `centos-stream+epel-10-x86_64` chroot (SETUP.md Step 10) — real RPMs in `built-rpms/`. ghostty itself is not yet building: hit a real, diagnosed (not mysterious) Zig lazy-dependency resolution issue where its vendored `harfbuzz` C source silently fails to attach its include path under offline `--system` mode, falling back to el10's too-old system harfbuzz headers. Next step identified: vendor via a real `zig build --fetch` pass against the actual build graph (with network) rather than a flat per-URL `zig fetch` loop. | Retry ghostty vendoring via `zig build --fetch`; already unblocked on gtk4-layer-shell |
 | hyprland | COPR (lionheartp/Hyprland) has no el10/CentOS-Stream-10 target. Base `wlroots-0.18.2`/`wlroots-devel` are fine (EPEL); the gap is Hyprland's own newer libs (`aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics`). **Worse than previously framed**: Terra EL (see Related Links) — a third party actively packaging for el10 — deliberately *removed* Hyprland from their repo, stating plainly "they don't build anymore and we don't support hyprland as a WM, esp since the whole freedesktop thing." This isn't just "no COPR target," it's an informed third party judging Hyprland currently unbuildable/unsupportable on this kind of platform. Terra does still carry specs for most of the dependency libs (`hyprutils`, `hyprlang`, `hyprgraphics`, `hyprwayland-scanner`, `hypridle`, `hyprlock`) but not Hyprland core itself, nor `aquamarine`/`hyprcursor`. | **Recommend deprioritizing** below mangowm/niri rather than treating as a straightforward 5-lib port |
 | miraclewm | Not wlroots-based (Mir). Confirmed absent from all enabled repos; not investigated further yet. | Separate investigation track — different dependency stack (Mir, mir-graphics-drivers), may not exist on EL10 |
