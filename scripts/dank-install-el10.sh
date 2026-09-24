@@ -27,6 +27,12 @@
 # a real dependency of wireplumber-libs and ibus-libpinyin. This script
 # refuses to proceed with --compositor hyprland if it detects either
 # installed, unless --force is given.
+#
+# When --no-greeter isn't passed, this script also runs `dms-greeter enable
+# --command <compositor>` (mapping miracle-wm -> dms-greeter's own "miracle"
+# name) and, if gdm is enabled, disables it and enables greetd in its place -
+# without this, gdm silently keeps winning the display-manager.service alias
+# at boot even after greetd is installed and configured.
 
 set -euo pipefail
 
@@ -212,6 +218,30 @@ run sudo dnf install "${DNF_YES_FLAG[@]}" "$DMS_PACKAGE"
 
 if [ "$INSTALL_GREETER" = "1" ]; then
     run sudo dnf install "${DNF_YES_FLAG[@]}" "$GREETER_PACKAGE"
+
+    # dms-greeter's --command flag uses its own compositor names, which don't
+    # all match our package/compositor names (notably miracle-wm -> miracle).
+    case "$COMPOSITOR" in
+    miracle-wm) GREETER_COMMAND="miracle" ;;
+    *) GREETER_COMMAND="$COMPOSITOR" ;;
+    esac
+
+    # `dms-greeter enable` checks that its --command target is actually on
+    # PATH before wiring up greetd - defaults to niri if --command is left
+    # off, which fails with "niri was not found in path" for anyone who
+    # chose --compositor hyprland/miracle-wm. Pass it explicitly.
+    GREETER_ENABLE_FLAGS=(--command "$GREETER_COMMAND" enable)
+    [ "$ASSUME_YES" = "1" ] && GREETER_ENABLE_FLAGS+=(-y)
+    run sudo dms-greeter "${GREETER_ENABLE_FLAGS[@]}"
+
+    # `dms-greeter enable` wires up greetd's own config but does not fight
+    # gdm for the display-manager.service alias - only one unit can hold it,
+    # so gdm (if present and enabled) silently keeps winning at boot unless
+    # explicitly disabled here.
+    if systemctl list-unit-files gdm.service >/dev/null 2>&1 && systemctl is-enabled --quiet gdm.service 2>/dev/null; then
+        run sudo systemctl disable gdm.service
+        run sudo systemctl enable greetd.service
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -225,7 +255,11 @@ if [ "$ENABLE_SERVICE" = "1" ]; then
     fi
 fi
 
-green "Done. Log out and select '$COMPOSITOR' from your display/login manager's session list."
+if [ "$INSTALL_GREETER" = "1" ]; then
+    green "Done. Reboot to land on the dms-greeter/greetd login screen defaulting to '$COMPOSITOR'."
+else
+    green "Done. Log out and select '$COMPOSITOR' from your display/login manager's session list."
+fi
 if [ "$COMPOSITOR" = "hyprland" ]; then
     yellow "Note: hyprland here depends on our rebuilt lua-5.5 (see script header) - watch for"
     yellow "conflicts if you later install wireplumber-libs or ibus-libpinyin."
