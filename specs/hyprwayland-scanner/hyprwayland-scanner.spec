@@ -5,11 +5,14 @@
 # dependency chain toward eventually building `hyprland` itself (see SETUP.md and PLAN.md's
 # hyprland blocker entry). Build-time-only tool, no runtime library deps beyond pugixml.
 # Release: %%autorelease -> 1%%{?dist}; %%changelog: %%autochangelog -> manual (rpmautospec n/a on el10).
-# STATUS: not yet mock-built.
+# UPDATE 2026-09-24: bumped 0.4.2 -> 0.4.6 to test whether it fixes a real aquamarine 0.15.1 build
+# failure ("zero-size array" compile errors in generated protocol .cpp files) - plausible
+# hyprwayland-scanner code-gen bug fixed in a later release, not yet confirmed.
+# STATUS: 0.4.2 was mock-built successfully; this 0.4.6 bump not yet mock-built.
 # ---------------------------------------------------------------------------
 
 Name:           hyprwayland-scanner
-Version:        0.4.2
+Version:        0.4.6
 Release:        1%{?dist}
 Summary:        A Hyprland implementation of wayland-scanner, in and for C++
 

@@ -5,20 +5,26 @@
 # finding, corrected mid-session: initially assumed the whole Mir toolkit had no Fedora/el10
 # packaging at all (user pushed back - correctly). Full BuildRequires sweep against el10 found
 # almost everything already present, including quite niche ones (`wlcs`, `glm-devel`,
-# `lttng-ust-devel`, `gflags-devel`, `umockdev`) - only `pkgconfig(umockdev-1.0)` and
-# `python3-dbusmock` (used only by Mir's own test suite per Fedora's own "# For the tests" comment)
-# are missing - `python3-dbusmock` doesn't exist in Fedora at all, even rawhide.
+# `lttng-ust-devel`, `gflags-devel`) - only `pkgconfig(umockdev-1.0)` and `python3-dbusmock` were
+# missing. Forked `umockdev` too (specs/umockdev/) - `python3-dbusmock` doesn't exist in Fedora at
+# all, even rawhide, and stayed missing.
 #
 # Changes vs. upstream Fedora spec:
-#   - `%%bcond run_tests 1` -> `0`: disables %%check by default.
-#   - Wrapped the `pkgconfig(umockdev-1.0)` and `python3-dbusmock` BuildRequires in
-#     `%%if %%{with run_tests}` - Fedora declares them unconditionally despite the comment marking
-#     them test-only (real failure hit first: `mock` failed at dependency-install time on both
-#     before this fix, confirming they were genuinely unconditional, not just documentation).
+#   - `%%bcond run_tests 1` -> `0`: disables the actual %%check/ctest run by default.
+#   - `python3-dbusmock` BuildRequires wrapped in `%%if %%{with run_tests}` - it's genuinely
+#     test-execution-only (a pure-Python dbus mocking helper used by tests when they actually run),
+#     confirmed by it never surfacing as a configure-time (`%%conf`/CMake) blocker.
+#   - `pkgconfig(umockdev-1.0)` BuildRequires kept UNCONDITIONAL, matching Fedora - tried making it
+#     conditional on run_tests too at first (same reasoning as dbusmock), but that was wrong: Mir's
+#     own `tests/CMakeLists.txt` calls `pkg_check_modules(... umockdev-1.0 ...)` unconditionally at
+#     *configure* time regardless of whether tests later run, so it must always be installed even
+#     with run_tests=0 - a real failed build first, twice (before umockdev existed at all, and
+#     again right after making it conditional), confirmed this the hard way.
 #     Not otherwise adapted - everything else Fedora's spec does (cargo-rpm-macros for its Rust
 #     input-evdev-rs component, cmake/ninja, subpackage layout) works as-is on el10.
-# STATUS: not yet mock-built - this is a large, complex package (694-line spec, many subpackages,
-# mixed C++/Rust build), expect this to take real iteration even with everything present.
+# STATUS: not yet mock-built successfully - large, complex package (694-line spec, many
+# subpackages, mixed C++/Rust build), multiple real iterations needed even with every dependency
+# present (missing rust-calloop/rust-input/rust-input-sys crates, then umockdev, then this).
 # ---------------------------------------------------------------------------
 
 # Force out of source build
@@ -104,9 +110,7 @@ BuildRequires:  pkgconfig(libinput)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(libxml++-2.6)
 BuildRequires:  pkgconfig(nettle)
-%if %{with run_tests}
 BuildRequires:  pkgconfig(umockdev-1.0) >= 0.6
-%endif
 BuildRequires:  pkgconfig(uuid)
 BuildRequires:  pkgconfig(wayland-server)
 BuildRequires:  pkgconfig(wayland-client)
