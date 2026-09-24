@@ -688,6 +688,57 @@ something else.
 "build vs. adopt Terra's DankMaterialShell spec" open question for good - stick with avengemedia's
 `dms`/`dms-cli`. See PLAN.md's Related Links section for the full note.
 
+## Step 15 — Hyprland dependency chain: 6 more libs forked, built, verified
+
+User asked to build hyprland and miraclewm next. Started with hyprland's dependency chain, since
+core `hyprland`/`aquamarine` need from-scratch specs (neither Terra nor Fedora has ever packaged
+`aquamarine`; Terra's `hyprland` directory is now fully deleted with no history easily recovered -
+checked their removal PR #17477, which only removed leftover dependency-lib variants, not
+`hyprland.spec`/`aquamarine.spec` themselves, meaning those may never have existed in this repo).
+
+Checked Fedora dist-git for the six libs previously identified (Step 8) as at least partially
+covered by Terra: `hyprwayland-scanner`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics` all
+exist in Fedora rawhide (none branched to epel9/epel10 - same unbranched pattern as everything else
+this session). Forked all five, plus discovered and forked a sixth, transitively-needed dependency:
+**`libspng`** (hyprgraphics needs `pkgconfig(spng)`, absent from el10 entirely).
+
+All six built clean in mock, in dependency order (`hyprwayland-scanner`/`hyprutils`/`libspng` have
+no internal deps → `hyprlang` needs `hyprutils` → `hyprcursor`/`hyprgraphics` need `hyprlang`):
+- `hyprwayland-scanner` 0.4.2 - clean first try.
+- `hyprutils` 0.7.1 - clean first try.
+- `libspng` 0.7.4 - **one real failure, fixed**: Fedora's spec patches two test cases
+  (`ch1n3p04`/`ch2n3p08`) to `should_fail: true`, working around spng's incompatibility with
+  libpng >=1.6.47's PNGv3 behavior change. El10's libpng is 1.6.40 (predates that change), so
+  applying Fedora's patch caused the *opposite* problem - those two tests **unexpectedly passed**,
+  which `meson test`/`%check` treats as a failure too. Fix: drop that sed patch entirely (confirmed
+  via a real failed build first, not assumed).
+- `hyprlang` 0.6.4 - clean first try (against the local `hyprutils`).
+- `hyprcursor` 0.1.11 - clean first try, once its test-data source was sorted: Fedora's spec
+  references `Source: HyprBibataModernClassicSVG.tar.gz` with no URL (lives in Fedora's lookaside
+  cache, not a plain public link) - resolved via
+  `https://src.fedoraproject.org/lookaside/pkgs/hyprcursor/HyprBibataModernClassicSVG.tar.gz/sha512/<hash>/...`
+  (hash from Fedora's package `sources` metadata file) and vendored directly.
+- `hyprgraphics` 0.1.5 - clean first try, once `libspng` was in place. Disabled its optional
+  `libjxl` bcond (not needed for hyprland itself; avoids porting `libjxl`/`libjxl_cms`/
+  `libjxl_threads` too, which weren't checked/needed for anything else this session).
+
+### Full chain installs and resolves together
+```
+sudo dnf install -y hyprutils hyprlang hyprcursor hyprgraphics hyprwayland-scanner-devel libspng
+# Complete! - pulls in tomlplusplus, pugixml, libzip transitively from el10/EPEL, no conflicts
+rpm -V hyprutils hyprlang hyprcursor hyprgraphics hyprwayland-scanner-devel libspng   # -> clean
+```
+
+### Remaining for hyprland itself
+Two packages need genuinely from-scratch specs, no reference anywhere found (checked Fedora dist-git
+and both Terra repos): **`aquamarine`** (Hyprland's own rendering/backend library, replaced direct
+wlroots usage since Hyprland 0.40+) and **`hyprland`** itself. Both projects are actively maintained
+upstream with recent releases (Hyprland v0.56.2, Aug 2026; aquamarine v0.15.1, Sep 2026) - Terra's
+stated reason for dropping support ("doesn't build anymore... whole freedesktop thing") may be
+specific to their own build environment/policy rather than a universal breakage, worth still
+attempting rather than treating as a hard stop. `hypridle`/`hyprlock` (optional utilities, Terra
+had specs for both before deletion, not yet recovered) are lower priority than core `hyprland`.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
