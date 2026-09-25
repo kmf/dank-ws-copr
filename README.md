@@ -62,7 +62,8 @@ scratch to work on el10.
 [`scripts/dank-install-el10.sh`](scripts/dank-install-el10.sh) is an unofficial equivalent of
 AvengeMedia's own `dankinstall` (`curl -fsSL https://install.danklinux.com | sh`), which doesn't
 support RHEL/CentOS at all. It enables the right repos, installs your chosen compositor and
-terminal, sets up `dms` + `dms-greeter`, and enables the DMS systemd user service.
+terminal, deploys DMS's compositor config integration (`dms setup headless`), sets up `dms` +
+`dms-greeter`, and enables the DMS systemd user service.
 
 ```bash
 curl -fsSL -o dank-install-el10.sh https://raw.githubusercontent.com/kmf/dank-ws-copr/main/scripts/dank-install-el10.sh
@@ -93,12 +94,20 @@ sudo dnf install -y quickshell-git matugen cliphist danksearch dgop dankcalendar
 # 4. A compositor - niri comes from its own upstream COPR, not this repo
 sudo dnf copr enable -y yalter/niri
 sudo dnf install -y niri
-# or: sudo dnf install -y hyprland   /   sudo dnf install -y miracle-wm
+# or: sudo dnf install -y hyprland hyprland-guiutils   /   sudo dnf install -y miracle-wm
 
 # 5. Terminal, greeter, optional extras
 sudo dnf install -y ghostty dms-greeter cava kf6-kimageformats
 
-# 6. Enable the greeter and the DMS service
+# 6. Deploy the compositor config integration - installing `dms` alone does NOT
+# do this. Required for niri/hyprland (not yet supported for miracle-wm);
+# --no-systemd is required for hyprland specifically, since unlike niri it has
+# no built-in systemd session integration (dms.service would otherwise never
+# start under it - see PLAN.md's hyprland entry).
+dms setup headless --compositor niri --no-systemd --terminal ghostty
+# or: dms setup headless --compositor hyprland --no-systemd --terminal ghostty
+
+# 7. Enable the greeter and the DMS service
 sudo dms-greeter enable -y
 systemctl --user enable --now dms
 ```
