@@ -12,6 +12,11 @@ SOURCES/*.tar.xz
 # regenerable from specs/, kept locally on durin only
 /built-rpms/
 
+# Large upstream main-source tarballs (multi-ten-MB+) stay local, refetched via `spectool -g` as
+# needed - small ones (a few hundred KB to low single-digit MB) get committed under specs/ for
+# reproducibility, but this one and the ghostty zig-vendor cache are too big to be worth it.
+specs/hyprland/Hyprland-*.tar.gz
+
 # Mock chroot state
 /var/lib/mock/
 

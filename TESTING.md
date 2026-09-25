@@ -58,7 +58,7 @@ All 33 packages below have a ✅ real COPR build. "Local test" describes what wa
 | `dms-greeter` | 1.6.2 | (from `avengemedia/danklinux`, not built here) | Installed; **real end-to-end login test performed**, see below |
 | `wlroots0.19` | 0.19.x | [11030613](https://copr.fedorainfracloud.org/coprs/build/11030613) | Installed; side-track for an older mangowm target, superseded |
 | `scenefx` | 0.4.1 | [11030668](https://copr.fedorainfracloud.org/coprs/build/11030668) | Installed alongside wlroots0.19 |
-| `hyprwayland-scanner` | 0.4.2 | [11030603](https://copr.fedorainfracloud.org/coprs/build/11030603) | Installed as a build dep throughout the Hyprland chain |
+| `hyprwayland-scanner` | 0.4.6 | [11035382](https://copr.fedorainfracloud.org/coprs/build/11035382) | Installed; `aquamarine`/`hyprland` rebuilt and reinstalled against it as regression checks (see below) |
 | `hyprutils` | 0.14.2 | [11030604](https://copr.fedorainfracloud.org/coprs/build/11030604) | Installed, version-floor-verified against upstream CMakeLists |
 | `hyprlang` | 0.6.8 | [11030665](https://copr.fedorainfracloud.org/coprs/build/11030665) | Installed |
 | `hyprcursor` | 0.1.11 | [11030698](https://copr.fedorainfracloud.org/coprs/build/11030698) | Installed |
@@ -131,9 +131,16 @@ and running, and the greeter is live on this exact machine as this report is wri
 - **Self-correction found while preparing this report**: `specs/hyprwayland-scanner`'s checked-in
   spec claimed version 0.4.6 (an unconfirmed local bump explored 2026-09-24 for a possible
   `aquamarine` build issue), but the only COPR build ever published for it (11030603) was actually
-  0.4.2 — the bump was never rebuilt or verified necessary. Confirmed `aquamarine` only requires
-  `>=0.4.0` and built fine against 0.4.2, so reverted the spec to match what's actually live and
-  tested rather than silently claim an untested version.
+  0.4.2 — the bump was never rebuilt or verified necessary. Confirmed `aquamarine`/`hyprland` only
+  require `>=0.4.0`/`>=0.3.10` respectively (both satisfied by 0.4.2, checked their own upstream
+  CMakeLists.txt directly) — the original build failure this bump was exploring had nothing to do
+  with the scanner version. Rather than just revert and leave the package stale, completed the bump
+  for real this time: `hyprwayland-scanner` 0.4.6 (upstream's current latest) built, installed, and
+  `aquamarine` + `hyprland` both rebuilt and reinstalled against it as regression checks —
+  `Hyprland --help` runs, `ldd`/`rpm -V` both clean. Real COPR builds: `hyprwayland-scanner`
+  [11035382](https://copr.fedorainfracloud.org/coprs/build/11035382) → `aquamarine`
+  [11035384](https://copr.fedorainfracloud.org/coprs/build/11035384) → `hyprland`
+  [11035386](https://copr.fedorainfracloud.org/coprs/build/11035386).
 
 ## Known Issues
 
