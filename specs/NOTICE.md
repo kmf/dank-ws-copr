@@ -15,6 +15,7 @@ source, license, and what was changed. This file is the index.
 | `specs/rust-enquote/rust-enquote.spec` | [Fedora rawhide dist-git](https://src.fedoraproject.org/rpms/rust-enquote) | rust2rpm-generated; Fedora packaging convention as above | Adapted; verified via real mock build |
 | `specs/rust-greetd_ipc/rust-greetd_ipc.spec` | [Fedora rawhide dist-git](https://src.fedoraproject.org/rpms/rust-greetd_ipc) | rust2rpm-generated; Fedora packaging convention as above | Adapted; verified via real mock build |
 | `specs/rust-rpassword5/rust-rpassword5.spec` + patch | [Fedora rawhide dist-git](https://src.fedoraproject.org/rpms/rust-rpassword5) | rust2rpm-generated; Fedora packaging convention as above | Adapted; verified via real mock build |
+| `specs/iniparser/iniparser.spec` | [Fedora rawhide dist-git](https://src.fedoraproject.org/rpms/iniparser) | MIT; Fedora packaging convention as above | Unmodified; verified via real mock build + install |
 
 Terra EL's `packages-el` repo is licensed GPL-3.0 as a whole. Per GPLv3, redistributed/modified
 files from it retain that license and must credit the source — done via the header comment in each

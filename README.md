@@ -34,6 +34,13 @@ scratch to work on el10.
 `hyprwire`, `hyprland-protocols`, `gtk4-layer-shell`, `libxkbcommon` (bumped), `lua` (bumped),
 `muparser`, `libspng`
 
+### Hyprland GUI utilities
+- **hyprland-guiutils** — dialog/file-picker/crash-reporter/welcome screens Hyprland shells out to;
+  genuinely unpackaged anywhere upstream (not even Fedora)
+- **hyprtoolkit** — Hyprland's own native (non-Qt) GUI toolkit, required by the above
+- `iniparser` (bumped) — needed a pkgconfig file `hyprtoolkit`'s build requires; el10's own didn't
+  ship one
+
 ### Greeter
 - **greetd** + `dms-greeter` — includes 4 forked Rust crate dependencies (`rust-pam-sys`,
   `rust-enquote`, `rust-greetd_ipc`, `rust-rpassword5`)

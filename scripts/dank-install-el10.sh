@@ -309,8 +309,37 @@ fi
 run sudo dnf install "${DNF_YES_FLAG[@]}" "${CORE_PACKAGES[@]}"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "${OPTIONAL_PACKAGES[@]}"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$COMPOSITOR"
+if [ "$COMPOSITOR" = "hyprland" ]; then
+    # Hyprland itself shells out to these for its built-in polkit-agent
+    # fallback, file-picker fallback, crash reporter, and first-run
+    # welcome/update/donate screens - genuinely unpackaged anywhere upstream
+    # (Fedora included) until forked into this repo.
+    run sudo dnf install "${DNF_YES_FLAG[@]}" hyprland-guiutils
+fi
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$TERMINAL"
 run sudo dnf install "${DNF_YES_FLAG[@]}" "$DMS_PACKAGE"
+
+# Deploy the actual compositor config integration - installing the `dms`
+# package alone does NOT do this. Real, confirmed-live gap: niri's own
+# niri-session wrapper natively activates graphical-session.target on
+# startup, so dms.service (WantedBy=graphical-session.target) fires on its
+# own for niri - but plain Hyprland has zero built-in systemd integration
+# (checked its own source directly: no such code exists anywhere), so
+# dms.service never starts under it without this. `dms setup headless
+# --no-systemd` deploys the compositor-agnostic fix instead: a direct
+# `hl.on("hyprland.start", ...) -> dms run` exec hook (or niri's config
+# equivalent) that starts DMS itself, independent of graphical-session.target.
+if [ "$COMPOSITOR" = "miracle-wm" ]; then
+    yellow "dms setup headless doesn't support miracle-wm (only niri, hyprland, mango) - skipping config deployment; DMS may need manual setup under miracle-wm."
+else
+    DMS_SETUP_FLAGS=(setup headless --compositor "$COMPOSITOR" --no-systemd --skip-existing)
+    [ -n "$TERMINAL" ] && DMS_SETUP_FLAGS+=(--terminal "$TERMINAL")
+    if [ "$DRY_RUN" = "1" ]; then
+        printf '[dry-run] dms %s\n' "${DMS_SETUP_FLAGS[*]}"
+    else
+        dms "${DMS_SETUP_FLAGS[@]}" || yellow "dms setup headless failed or was already configured - check ~/.config/hypr (or ~/.config/niri) manually if DMS doesn't start on login."
+    fi
+fi
 
 if [ "$INSTALL_GREETER" = "1" ]; then
     run sudo dnf install "${DNF_YES_FLAG[@]}" "$GREETER_PACKAGE"

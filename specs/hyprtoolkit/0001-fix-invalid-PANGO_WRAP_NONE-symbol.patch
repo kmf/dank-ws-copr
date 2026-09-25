@@ -1,0 +1,11 @@
+--- a/src/element/text/Text.cpp	2026-09-25 19:37:09.408317064 +0200
++++ b/src/element/text/Text.cpp	2026-09-25 19:37:09.411542822 +0200
+@@ -358,7 +358,7 @@
+         pango_layout_set_wrap(pangoData.layout, PANGO_WRAP_WORD_CHAR);
+         pango_layout_set_ellipsize(pangoData.layout, PANGO_ELLIPSIZE_NONE);
+     } else {
+-        pango_layout_set_wrap(pangoData.layout, PANGO_WRAP_NONE);
++        pango_layout_set_wrap(pangoData.layout, PANGO_WRAP_WORD_CHAR);
+         pango_layout_set_ellipsize(pangoData.layout, PANGO_ELLIPSIZE_END);
+     }
+ }

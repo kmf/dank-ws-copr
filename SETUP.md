@@ -952,6 +952,84 @@ Added both to `dank-install-el10.sh`'s new `OPTIONAL_PACKAGES` array (installed 
 existing `CORE_PACKAGES` set) so future installs pick them up automatically instead of needing a
 separate `dms doctor` pass + manual fix.
 
+## Step 20 — TPM2-bound LUKS auto-unlock (infra, not packaging)
+
+User needed unattended reboots to test greetd/display-manager switches without removing disk
+encryption. `durin` has a hardware TPM (`/dev/tpm0`). Enrolled a TPM2-sealed keyslot alongside the
+existing passphrase one (`sudo systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7
+/dev/nvme0n1p3`), added `tpm2-device=auto` to `/etc/crypttab`, rebuilt the initramfs
+(`dracut -f`), confirmed `tpm2-tss`/`systemd-cryptsetup` present in the new image. Rebooted: root
+and home mounted with zero manual passphrase entry. Original passphrase keyslot untouched as
+fallback if the TPM/PCR7 state ever changes.
+
+## Step 21 — Real end-to-end Hyprland + dms-greeter login test
+
+Installed `hyprland` for real (not just mock), confirmed clean install (no lua/wireplumber conflict
+on this host - neither `wireplumber-libs` nor `ibus-libpinyin` installed). Switched
+`/etc/greetd/config.toml`'s `command =` line to `--command hyprland`, restarted `greetd` - the
+greeter itself came up running on real Hyprland (its own login-screen compositor), stable.
+
+To exercise the actual login pipeline (PAM auth -> session start) without touching a real
+password, drove greetd's own IPC socket directly (`/run/greetd-<pid>.sock`, length-prefixed JSON
+protocol: `create_session` -> `post_auth_message_response` -> `start_session`) as a disposable
+throwaway user created just for this test. Confirmed via `loginctl`/`ps`: a real, separate Hyprland
+session started on `seat0`/`tty1`, got DRM master on the actual GPU, Xwayland came up, full
+systemd `--user` + D-Bus were alive. `hyprland.log` showed genuine hardware (real DP/eDP/HDMI
+outputs, a real touchpad/mouse) - not a stub/headless VM. Two benign `aquamarine: Cannot commit
+when a page-flip is awaiting` warnings appeared (known-harmless KMS contention noise, not fatal).
+Cleaned up: terminated the session, deleted the test user, restored greetd to niri.
+
+## Step 22 — hyprland-guiutils + the "dms didn't start" bug
+
+User reported two things after the Step 21 test, pointing at
+https://danklinux.com/docs/dankmaterialshell/compositors#hyprland-configuration:
+
+**"dms didn't start"** - root-caused by reading Hyprland's own source directly (`grep` for
+`graphical-session`/`systemd`/`sd_notify` in `main.cpp`: zero hits). Unlike niri (`niri-session`
+natively activates `graphical-session.target`), plain Hyprland has *no* built-in systemd session
+integration at all - confirmed independently via Hyprland's own wiki
+(wiki.hypr.land/Useful-Utilities/Systemd-start/: "plain Hyprland binary does not automatically
+activate graphical-session.target... requires UWSM or hyprland-session.target"). So `dms.service`
+(`WantedBy=graphical-session.target`) never fires under Hyprland, no matter how correctly it's
+enabled. Fix: `dms setup headless --compositor hyprland --no-systemd` (a real `dms` CLI subcommand,
+found via `dms --help`) deploys a direct `hl.on("hyprland.start", ...) -> dms run` exec hook into
+`hyprland.lua` instead - bypasses the whole systemd-target dependency. Ran it live against the
+user's actual running Hyprland session's Wayland socket (`sudo -u kmf env
+HYPRLAND_INSTANCE_SIGNATURE=... WAYLAND_DISPLAY=wayland-1 dms run`) so they could see DMS appear
+immediately without logging out. `dank-install-el10.sh` was missing this whole step - fixed to call
+`dms setup headless` after installing the compositor+terminal (guards `miracle-wm`, which `dms
+setup` explicitly doesn't support: `unknown compositor "miracle-wm" (expected niri, hyprland, or
+mango)`).
+
+**"missing hyprland-guiutils"** - real, genuinely unpackaged dependency (checked Fedora rawhide/
+epel9/epel10 for both this name and its predecessor `hyprland-qtutils`: all 404). Hyprland shells
+out to it for its built-in polkit-agent fallback, file-picker fallback, crash reporter, and
+first-run welcome/update/donate screens. Chain, all written from scratch (no reference spec
+anywhere), in build order:
+- `iniparser` bumped 4.1->4.2.6 (forked from Fedora rawhide): el10's own (EPEL/BaseOS) never
+  shipped a pkgconfig file, needed by `hyprtoolkit`'s CMake (`pkg_check_modules(... iniparser
+  ...)`). Real conflict found via a first failed install attempt: the SONAME changes (`.so.1` ->
+  `.so.4`), breaking `daxctl`/`ndctl`/`netatalk` (checked via `dnf repoquery --whatrequires`) -
+  accepted as low-risk (none of those are things a desktop-shell user would have installed, unlike
+  the lua/wireplumber conflict). Rebuilt `cava` (built earlier this session, linked the old SONAME)
+  against the new one to match.
+- `hyprtoolkit` (Hyprland's own *native, non-Qt* GUI toolkit - its Qt-based predecessor
+  `hyprland-qtutils` was fully superseded, confirmed via that repo's own README pointing at this
+  one). Built on aquamarine/hyprutils/hyprlang/hyprgraphics, all already in this repo. Two real
+  bugs hit and fixed: (1) `PANGO_WRAP_NONE` - checked el10's actual Pango 1.54.0 headers directly,
+  confirmed this enum value has *never existed* in any Pango release, still present unfixed on
+  hyprtoolkit's own `main` branch - patched to `PANGO_WRAP_WORD_CHAR`; (2) the same GCC14/libstdc++
+  completeness-gap pattern from `hyprland`/`hyprwire`/`mir` earlier this session, this time
+  `std::format` lacking a `std::vector<std::string>` range-formatter specialization - fixed with
+  `gcc-toolset-16`. Also needed `--addrepo` for EPEL directly in the mock build command (mock's
+  default `centos-stream-10-x86_64` template has no EPEL at all, confirmed via its own `.tpl` file -
+  a real gap distinct from the host's own dnf config, which does have EPEL enabled) for
+  `abseil-cpp-devel`'s `pkgconfig(absl_flat_hash_map)`.
+- `hyprland-guiutils` itself - built clean once the above two were in place, first try.
+
+Real COPR builds queued in dependency order: iniparser (11035226, succeeded) -> cava rebuild
+(11035228, chained) ; hyprtoolkit (11035229) -> hyprland-guiutils (11035230, chained).
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
