@@ -7,13 +7,18 @@ kernel 6.12.0-269.el10, actively used as a daily-driver desktop during this work
 VM spun up only to pass a build.
 
 **COPR project**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/),
-targeting `centos-stream-10-x86_64`.
+building for two chroots: `centos-stream-10-x86_64` and `epel-10-x86_64`. Both are needed —
+newer `dnf-plugins-core` auto-detects a real CentOS Stream 10 host's Copr chroot as `epel-10-x86_64`
+(Copr's generic "Enterprise Linux 10" name, covering RHEL/CentOS Stream/Rocky/Alma uniformly), not
+`centos-stream-10-x86_64` — so `dnf copr enable kmf/dank-ws-copr` failed outright until the second
+chroot was added and every package rebuilt for it (confirmed live: `hyprland`/`dms`/`cava` all now
+resolve and dry-run install cleanly from it).
 
 ## Summary
 
-- **36/36 real COPR builds succeeded** (server-side, clean-room chroot — not just local `mock`),
-  covering 33 unique packages. Zero failed COPR builds in this project's history; failures during
-  iteration were caught and fixed locally before ever being queued.
+- **72/72 real COPR builds succeeded** (server-side, clean-room chroot — not just local `mock`),
+  covering 33 unique packages across both chroots. Zero failed COPR builds in this project's
+  history; failures during iteration were caught and fixed locally before ever being queued.
 - **Real end-to-end functional test performed**: a genuine Hyprland session, started through
   greetd's actual login protocol (not a shortcut), holding DRM master on real hardware, running
   DMS successfully. Full detail in [End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms)
@@ -29,7 +34,9 @@ targeting `centos-stream-10-x86_64`.
 Every package in this repo went through some or all of these stages before being considered done:
 
 1. **Local `mock` build** against the real `centos-stream-10-x86_64` chroot (not just `rpmbuild`
-   directly) — catches missing BuildRequires and chroot-specific issues early.
+   directly) — catches missing BuildRequires and chroot-specific issues early. (The project also
+   builds for `epel-10-x86_64` — see [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed) —
+   but local `mock` testing throughout this report used the `centos-stream-10-x86_64` config.)
 2. **Local install + smoke test** on `durin` via `dnf install` of the built RPM, then a functional
    check appropriate to the package (`--version`/`--help`, `rpm -V`, `ldd`, or an actual runtime
    test for larger components).
@@ -141,6 +148,16 @@ and running, and the greeter is live on this exact machine as this report is wri
   [11035382](https://copr.fedorainfracloud.org/coprs/build/11035382) → `aquamarine`
   [11035384](https://copr.fedorainfracloud.org/coprs/build/11035384) → `hyprland`
   [11035386](https://copr.fedorainfracloud.org/coprs/build/11035386).
+- **`dnf copr enable kmf/dank-ws-copr` failed outright on a real, freshly-tested el10 host** with
+  `Repository 'epel-10-x86_64' does not exist in project 'kmf/dank-ws-copr'. Available
+  repositories: 'centos-stream-10-x86_64'`. Root cause: a newer `dnf-plugins-core` auto-detects the
+  local Copr chroot name as `epel-10-x86_64` (Copr's generic "Enterprise Linux 10" chroot, covering
+  RHEL/CentOS Stream/Rocky/Alma uniformly) rather than the CentOS-Stream-specific
+  `centos-stream-10-x86_64` this project had only ever built for. Fixed by adding the
+  `epel-10-x86_64` chroot to the project and rebuilding all 33 packages for it in dependency order
+  (Copr chroots don't share build artifacts with each other) — all 33 succeeded. Verified live:
+  `dnf copr enable` now succeeds, and `hyprland`/`dms`/`cava` all resolve and dry-run install
+  cleanly from the newly-populated chroot.
 
 ## Known Issues
 

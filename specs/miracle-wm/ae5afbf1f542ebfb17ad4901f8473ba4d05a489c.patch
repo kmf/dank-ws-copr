@@ -1,0 +1,70 @@
+From ae5afbf1f542ebfb17ad4901f8473ba4d05a489c Mon Sep 17 00:00:00 2001
+From: Matt Kosarek <matt.kosarek@canonical.com>
+Date: Mon, 21 Sep 2026 13:59:53 -0400
+Subject: [PATCH] bugfix: install libmiracle-wm-plugins.so to a private
+ directory
+
+---
+ CMakeLists.txt                | 9 +++++++--
+ snap/snapcraft.yaml           | 1 +
+ src/plugin_manager_loader.cpp | 5 +++--
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index e830cc16..284f147b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -209,10 +209,15 @@ add_library(miracle-wm-implementation STATIC
+         src/occlusion_bypass.cpp src/occlusion_bypass.h
+ )
+ 
++# The plugin module is a dlopen()'d helper rather than a public
++# library, so it lives in its own subdirectory of libdir.
++set(MIRACLE_PLUGIN_MODULE_DIR ${CMAKE_INSTALL_LIBDIR}/miracle-wm)
++set(MIRACLE_PLUGIN_MODULE_PATH ${CMAKE_INSTALL_FULL_LIBDIR}/miracle-wm/libmiracle-wm-plugins.so)
++
+ target_compile_definitions(miracle-wm-implementation PRIVATE
+         COMPILING_AGAINST_DEV=${COMPILING_AGAINST_DEV}
+         FEATURE_PLUGIN_SYSTEM=${FEATURE_PLUGIN_SYSTEM}
+-        MIRACLE_PLUGIN_MODULE_PATH="${CMAKE_INSTALL_FULL_LIBDIR}/libmiracle-wm-plugins.so")
++        MIRACLE_PLUGIN_MODULE_PATH="${MIRACLE_PLUGIN_MODULE_PATH}")
+ 
+ # ----------------------------------------
+ # Precompiled headers for speed
+@@ -313,7 +318,7 @@ if (FEATURE_PLUGIN_SYSTEM)
+           miracle-wm-c
+           ${WASMEDGE_LIB})
+ 
+-  install(TARGETS miracle-wm-plugins DESTINATION ${CMAKE_INSTALL_LIBDIR})
++  install(TARGETS miracle-wm-plugins DESTINATION ${MIRACLE_PLUGIN_MODULE_DIR})
+ endif()
+ 
+ # ----------------------------------------
+diff --git a/snap/snapcraft.yaml b/snap/snapcraft.yaml
+index ba0cf391..54239abf 100644
+--- a/snap/snapcraft.yaml
++++ b/snap/snapcraft.yaml
+@@ -26,6 +26,7 @@ apps:
+       GBM_BACKENDS_PATH: ${SNAP}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/gbm
+       LIBGL_DRIVERS_PATH: ${SNAP}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/dri
+       LIBINPUT_QUIRKS_DIR: ${SNAP}/usr/share/libinput
++      MIRACLE_WM_PLUGIN_MODULE: ${SNAP}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/miracle-wm/libmiracle-wm-plugins.so
+       PATH: ${SNAP}/bin/:${SNAP}/usr/bin/:${SNAP}/usr/local/bin/:${PATH}
+       DRIRC_CONFIGDIR: ${SNAP}/usr/share/drirc.d
+ 
+diff --git a/src/plugin_manager_loader.cpp b/src/plugin_manager_loader.cpp
+index 802430d8..aac30e74 100644
+--- a/src/plugin_manager_loader.cpp
++++ b/src/plugin_manager_loader.cpp
+@@ -36,8 +36,9 @@ namespace
+     constexpr char const* soname = "libmiracle-wm-plugins.so";
+ 
+     /// dlopen the plugin module from the first location that works:
+-    ///   1. the $MIRACLE_WM_PLUGIN_MODULE override (handy for the build tree / tests),
+-    ///   2. the configured install path, then
++    ///   1. the $MIRACLE_WM_PLUGIN_MODULE override (handy for the build tree,
++    ///      tests, and relocated installs such as the snap),
++    ///   2. the configured install path (${libdir}/miracle-wm/), then
+     ///   3. the bare soname (resolved via the normal loader search path).
+     ///
+     /// RTLD_LOCAL is essential: it keeps the module and its dependencies

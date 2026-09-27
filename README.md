@@ -136,7 +136,7 @@ systemctl --user enable --now dms
 
 ## Build Status
 
-- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/), targeting `centos-stream-10-x86_64`
+- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/), targeting both `centos-stream-10-x86_64` and `epel-10-x86_64` (the chroot a real `dnf copr enable` actually auto-detects on this distro family — see [TESTING.md](TESTING.md))
 - **Dependencies (Tiers 1–3)**: [avengemedia/danklinux](https://copr.fedorainfracloud.org/coprs/avengemedia/danklinux/), [avengemedia/dms-git](https://copr.fedorainfracloud.org/coprs/avengemedia/dms-git/)
 - **niri**: [yalter/niri](https://copr.fedorainfracloud.org/coprs/yalter/niri/) (upstream, not built here)
 

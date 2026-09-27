@@ -33,8 +33,9 @@ Turning this into the actual artifact needs, roughly in order:
 4. Get the already-verified specs building successfully *in COPR's own build environment*, not just
    locally on `durin`'s mock — COPR's chroot/mock config should match, but this hasn't been
    confirmed with a real COPR build yet.
-5. Validate the actual `dnf copr enable kmf/dank-ws-copr && dnf install ...` flow works, ideally on
-   a machine other than `durin`.
+5. ✅ **Done 2026-09-27**: validated the actual `dnf copr enable kmf/dank-ws-copr && dnf install ...`
+   flow — found and fixed a real chroot-detection bug in the process (see "Repos to Enable on
+   `durin`" below). Still only validated on `durin` itself, not yet on a separate machine.
 
 - Repo: `gh kmf/dank-ws-copr` (**local git repo only so far — not yet pushed to GitHub**)
 - Build host: `durin` (Tailscale-connected, CentOS Stream 10) — used for spec development and
@@ -142,6 +143,19 @@ not an infrastructure blocker.
 - COPR: yalter/niri — ✅ already enabled, niri installs cleanly (see Known Blockers)
 - (pending) COPR target for Hyprland once its own dependency chain (aquamarine, hyprutils,
   hyprlang, hyprcursor, hyprgraphics) is packaged for el10 — see Known Blockers
+
+**Real bug found and fixed 2026-09-27**: `sudo dnf copr enable kmf/dank-ws-copr` failed outright on
+a freshly-tested el10 host with `Repository 'epel-10-x86_64' does not exist in project
+'kmf/dank-ws-copr'. Available repositories: 'centos-stream-10-x86_64'`. Root cause: a newer
+`dnf-plugins-core` auto-detects the local Copr chroot name as `epel-10-x86_64` (Copr's generic
+"Enterprise Linux 10" chroot, covering RHEL/CentOS Stream/Rocky/Alma uniformly), not the
+CentOS-Stream-specific `centos-stream-10-x86_64` this project had only ever built for. Fixed by
+adding the `epel-10-x86_64` chroot (`copr-cli modify kmf/dank-ws-copr --chroot
+centos-stream-10-x86_64 --chroot epel-10-x86_64`) and rebuilding all 33 packages for it in
+dependency order — Copr chroots don't share build artifacts with each other, so the new chroot
+started completely empty. All 33 succeeded (72/72 real builds total across both chroots now).
+Verified live: `dnf copr enable` succeeds, `hyprland`/`dms`/`cava` all resolve and dry-run install
+cleanly. Full detail in `TESTING.md`'s "Runtime bugs found and fixed" section.
 
 ## Open Questions
 1. CI trigger model — Packit/webhook on push to `dank-ws-copr`, or manual `copr-cli build` from `durin`? Decides how granular commit scoping needs to be.
