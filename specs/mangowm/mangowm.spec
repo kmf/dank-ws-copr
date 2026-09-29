@@ -1,23 +1,35 @@
 # ---------------------------------------------------------------------------
-# Forked from Terra EL (terrapkg/packages-el, branch `el10`, GPL-3.0) verbatim, for reference:
-#   https://github.com/terrapkg/packages-el/blob/el10/anda/desktops/mangowm/mangowm.spec
-# Fetched into dank-ws-copr on 2026-09-24. NOT ADAPTED, NOT BUILDABLE YET.
+# Forked from Terra EL (terrapkg/packages-el, GPL-3.0), fetched directly from
+# their published SRPM (https://repos.fyralabs.com/terra44-source/
+# mangowm-0:0.17.4-1.fc44.src.rpm) since terrapkg/packages-el's own el10
+# branch never carried mangowm past the 0.16.3 reference-only fork
+# (specs/mangowm/'s prior git history) - this is Terra's Fedora 44 build,
+# adapted for el10.
 #
-# BLOCKED: requires pkgconfig(wlroots-0.19); el10's EPEL only ships wlroots 0.18.2, and Terra EL
-# itself does not appear to package wlroots at all (checked: no `wlroots` entry under
-# terrapkg/packages-el's anda/lib/), meaning this spec is likely unbuildable in Terra EL too, not
-# just here. Also needs `scenefx-devel`, which Terra EL *does* package (anda/lib/scenefx) and
-# which we have not yet ported. See SETUP.md Step 9 for full detail.
+# REAL BUG FOUND in Terra's own spec: it declares `BuildRequires:
+# pkgconfig(wlroots-0.19)`, but mango 0.17.4's actual source (meson.build)
+# requires `dependency('wlroots-0.20', version: '>=0.20.0')` and
+# `dependency('scenefx-0.5', version: '>=0.5.0')` - Terra's spec is stale,
+# never updated when upstream mango bumped its wlroots floor (same class of
+# staleness as the earlier 0.16.3 assessment in this repo's own PLAN.md).
+# Fixed here to declare what the source actually needs: wlroots-0.20 (via
+# specs/wlroots0.20/, side-by-side with el10's plain 0.18.2) and scenefx 0.5
+# (specs/scenefx/, bumped back from an earlier, now-superseded 0.4.1 pin -
+# see that spec's own header).
 #
-# Recommendation: deprioritize below ghostty (which only needs one missing dependency,
-# gtk4-layer-shell, vs. mangowm's two - one of which, a newer wlroots, is a much bigger lift and
-# carries real risk of colliding with the wlroots 0.18.2 that niri and other consumers depend on).
+# Also needed pixman bumped to >=0.46.0 (specs/pixman/, SYSTEM-WIDE - safe,
+# stable SONAME across this version range, see that spec's header) and
+# xkbcommon >=1.8.0 (already satisfied: el10 was bumped to 1.13.1 earlier
+# this session for Hyprland, see specs/libxkbcommon/).
+#
+# Otherwise unmodified from Terra's spec - same structure, meson build,
+# %files layout, mangowc Obsoletes/Provides compat chain.
 # ---------------------------------------------------------------------------
 
 %global mangowc_ver 0.12.5-1
 
 Name:           mangowm
-Version:        0.16.3
+Version:        0.17.4
 Release:        1%{?dist}
 Summary:        A modern, lightweight, high-performance Wayland compositor built on dwl
 License:        GPL-3.0-or-later AND MIT AND X11 AND CC0-1.0
@@ -32,14 +44,15 @@ BuildRequires:  pkgconfig(xcb)
 BuildRequires:  pkgconfig(xcb-icccm)
 BuildRequires:  pkgconfig(wayland-protocols)
 BuildRequires:  pkgconfig(wayland-server)
-BuildRequires:  pkgconfig(wlroots-0.19)
-BuildRequires:  pkgconfig(xkbcommon)
+BuildRequires:  pkgconfig(wlroots-0.20) >= 0.20.0
+BuildRequires:  pkgconfig(xkbcommon) >= 1.8.0
 BuildRequires:  pkgconfig(libinput)
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(libpcre2-8)
 BuildRequires:  pkgconfig(libcjson)
 BuildRequires:  pkgconfig(pangocairo)
-BuildRequires:  scenefx-devel
+BuildRequires:  pkgconfig(pixman-1) >= 0.46.0
+BuildRequires:  pkgconfig(scenefx-0.5) >= 0.5.0
 
 Conflicts:      mangowc < %{mangowc_ver}
 Obsoletes:      mangowc < %{mangowc_ver}
@@ -68,13 +81,10 @@ dwl — crafted for speed, flexibility, and a customizable desktop experience.
 %{_datadir}/wayland-sessions/mango.desktop
 %{_datadir}/xdg-desktop-portal/mango-portals.conf
 %{_mandir}/man1/mmsg.1.*
+%{_userunitdir}/mango-session.target
 
 %changelog
-* Sun Jul 19 2026 Olivia <git@olivia.sh> - 0.15.4-2
-- Update packager
-
-* Wed Mar 04 2026 Olivia <git@olivia.sh> - 0.12.5-1
-- Rename to mangowm
-
-* Wed Nov 12 2025 Olivia <git@olivia.sh>
-- Package mangowc
+* Tue Sep 29 2026 Karl Fischer <karl@obsidian.co.za> - 0.17.4-1
+- Forked from Terra's published Fedora 44 SRPM for dank-ws-copr, fixed the
+  stale wlroots-0.19/scenefx BuildRequires to match what 0.17.4's actual
+  source needs (wlroots-0.20, scenefx-0.5) - see header comment

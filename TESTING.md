@@ -16,9 +16,14 @@ resolve and dry-run install cleanly from it).
 
 ## Summary
 
-- **72/72 real COPR builds succeeded** (server-side, clean-room chroot — not just local `mock`),
-  covering 33 unique packages across both chroots. Zero failed COPR builds in this project's
-  history; failures during iteration were caught and fixed locally before ever being queued.
+- **82/84 real COPR builds succeeded** (server-side, clean-room chroot — not just local `mock`),
+  covering 38 unique packages across both chroots; the other 2 were cleanly canceled mid-queue
+  (an incorrect dependency chain, caught and re-queued correctly before either could fail) rather
+  than genuine build failures. Zero actual failed COPR builds in this project's history — failures
+  during iteration were always caught and fixed locally before ever being queued.
+- **`mangowm` (the last originally-blocked compositor) now builds successfully too**, closing out
+  every compositor this project set out to support. See
+  [mangowm: the last blocker resolved](#mangowm-the-last-blocker-resolved) below.
 - **Real end-to-end functional test performed**: a genuine Hyprland session, started through
   greetd's actual login protocol (not a shortcut), holding DRM master on real hardware, running
   DMS successfully. Full detail in [End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms)
@@ -26,8 +31,9 @@ resolve and dry-run install cleanly from it).
 - **A real runtime bug was found and fixed**: DMS did not start under Hyprland by default (root
   cause: Hyprland has no built-in systemd session integration, unlike niri). See
   [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed).
-- **Two known, documented, unresolved issues** remain — see [Known Issues](#known-issues) — neither
-  blocks the core DMS + niri + ghostty + greetd stack.
+- **The remaining known, documented issues** — see [Known Issues](#known-issues) — are narrow
+  (two real but low-blast-radius package conflicts, aarch64 untested, one `dms` CLI limitation) and
+  don't block the core DMS + niri/hyprland/mangowm/miracle-wm + ghostty + greetd stack.
 
 ## Methodology
 
@@ -50,8 +56,10 @@ Every package in this repo went through some or all of these stages before being
 
 ## Package Table
 
-All 33 packages below have a ✅ real COPR build. "Local test" describes what was actually run on
-`durin` beyond the build itself.
+All 38 packages below have a ✅ real COPR build (on both `centos-stream-10-x86_64` and
+`epel-10-x86_64`, except where an earlier single-chroot build ID is shown from before the second
+chroot existed — see [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed)). "Local test"
+describes what was actually run on `durin` beyond the build itself.
 
 | Package | Version | COPR build | Local test performed |
 |---|---|---|---|
@@ -89,11 +97,59 @@ All 33 packages below have a ✅ real COPR build. "Local test" describes what wa
 | `iniparser` (bumped) | 4.2.6 | [11035226](https://copr.fedorainfracloud.org/coprs/build/11035226) | Installed system-wide, `pkg-config --modversion iniparser` confirms |
 | `hyprtoolkit` | 0.6.0 | [11035229](https://copr.fedorainfracloud.org/coprs/build/11035229) | Installed |
 | `hyprland-guiutils` | 0.2.2 | [11035230](https://copr.fedorainfracloud.org/coprs/build/11035230) | Installed, all 5 binaries confirmed present and executable |
+| `pixman` (bumped) | 0.46.4 | [11047470](https://copr.fedorainfracloud.org/coprs/build/11047470) / [11047484](https://copr.fedorainfracloud.org/coprs/build/11047484) | Installed system-wide, `Hyprland`/`niri` regression-checked still working |
+| `libdrm` (bumped) | 2.4.134 | [11047472](https://copr.fedorainfracloud.org/coprs/build/11047472) / [11047487](https://copr.fedorainfracloud.org/coprs/build/11047487) | Installed system-wide, same regression check |
+| `wlroots0.20` | 0.20.2 | [11047474](https://copr.fedorainfracloud.org/coprs/build/11047474) / [11047491](https://copr.fedorainfracloud.org/coprs/build/11047491) | Installed side-by-side with el10's plain `wlroots` 0.18.2 |
+| `scenefx` (bumped) | 0.5 | [11047475](https://copr.fedorainfracloud.org/coprs/build/11047475) / [11047492](https://copr.fedorainfracloud.org/coprs/build/11047492) | Installed |
+| `mangowm` | 0.17.4 | [11047476](https://copr.fedorainfracloud.org/coprs/build/11047476) / [11047494](https://copr.fedorainfracloud.org/coprs/build/11047494) | Installed, `mango --help` runs, `ldd`/`rpm -V` clean |
 
 Consumed as-is, not built in this repo (already work on el10 via their own upstream/AvengeMedia
 COPRs — no fork needed): `dms`, `dms-cli`, `quickshell-git`, `matugen`, `cliphist`, `danksearch`,
 `dgop`, `dankcalendar-git` (via `avengemedia/danklinux` + `avengemedia/dms-git`); `niri` (via
 `yalter/niri`); `kf6-kimageformats` (via EPEL directly).
+
+## mangowm: the last blocker resolved
+
+`mangowm` was the one compositor this project originally flagged as blocked (see PLAN.md's history)
+— Terra's own packaged spec required `wlroots-0.19`, and el10 only had `wlroots` 0.18.2. Given a
+link to Terra's current Fedora 44 SRPM for mangowm 0.17.4, fetching and inspecting it directly
+turned up the same staleness pattern found earlier in this project for other packages: **Terra's own
+spec is wrong**. It still declares `BuildRequires: pkgconfig(wlroots-0.19)`, but 0.17.4's actual
+source (`meson.build`) requires `wlroots-0.20 >=0.20.0` and `scenefx-0.5 >=0.5.0` — confirmed by
+extracting the SRPM and reading `meson.build` directly, not assumed from the spec file.
+
+Getting there needed a 5-package chain, each checked against real el10 versions before forking
+anything:
+- `xkbcommon` >=1.8.0 — already satisfied (bumped to 1.13.1 earlier this session for Hyprland, no
+  new work needed).
+- `pixman` bumped 0.43.4→0.46.4, **system-wide** — checked first whether this was safe: pixman's
+  SONAME (`libpixman-1.so.0`) has stayed the same across this whole version range (confirmed
+  against Fedora's own current spec), and a real reverse-dependency check
+  (`dnf repoquery --whatrequires libpixman-1.so.0()(64bit)`) found cairo, mutter, weston, wlroots,
+  qemu-kvm, Xwayland, and this project's own hyprland/aquamarine/hyprtoolkit/niri/mir all linking
+  against it — all kept working unrebuilt after the bump (regression-checked: `Hyprland --help` and
+  `niri --help` both still ran fine, `dms doctor` warning count unchanged).
+- `wlroots0.20` — Fedora's current unversioned `wlroots` spec (0.20.2), renamed the same way this
+  project's existing `wlroots0.19` package was (side-by-side install, since each wlroots minor
+  version ships a distinctly-named library/pkgconfig path) — checked first that `wlroots0.19` and
+  plain `wlroots` weren't going to collide with it (`dnf repoquery --whatrequires wlroots` showed
+  only `cage` depends on the plain package, unaffected by adding a third side-by-side version).
+  Hit one real, genuine build failure here: wlroots' own `meson.build` hard-enforces
+  `libdrm >=2.4.129`, not just an RPM spec version pin — el10's libdrm (2.4.128) was one patch
+  release short. Confirmed via the actual error (`Dependency libdrm found: NO. Found 2.4.128 but
+  need: '>=2.4.129'`), then bumped `libdrm` too, 2.4.128→2.4.134, also system-wide (same
+  SONAME-stability check as pixman: `libdrm.so.2` unchanged across this range, confirmed against
+  Fedora's own current spec; 404 real reverse-dependency packages found, all still working
+  unrebuilt).
+- `scenefx` bumped back to 0.5 (wlroots-0.20) — superseding an earlier decision (2026-09-24) to pin
+  this repo's `scenefx` at 0.4.1 for wlroots-0.19. That decision's whole premise (mango needing
+  wlroots-0.19) turned out to rest on Terra's stale spec, not mango's actual requirement — checked
+  first that nothing else in this repo depended on the 0.4.1 build before replacing it.
+- `mangowm` 0.17.4 itself, with the corrected `BuildRequires`.
+
+Built clean in mock on the first real attempt once the chain was in place (no iteration needed for
+`mangowm` itself); installed locally (`mango --help` runs, `ldd`/`rpm -V` both clean). All 5
+packages queued to real COPR in dependency order for both chroots — 10/10 succeeded.
 
 ## End-to-end login test (Hyprland + greetd + DMS)
 
@@ -171,12 +227,10 @@ and running, and the greeter is live on this exact machine as this report is wri
    packages pinned to the old `libiniparser.so.1`), needed for `hyprtoolkit`'s build. Narrower
    blast radius than the lua conflict — none of those three are things a desktop-shell user would
    typically have installed.
-3. **`mangowm` remains unbuilt** — blocked on a `pixman`/`xkbcommon` system-wide version bump not
-   yet executed; not part of this report's tested set.
-4. **aarch64 untested** — everything above is x86_64 only so far.
-5. **`dms setup headless` does not support `miracle-wm`** (`unknown compositor "miracle-wm"
+3. **aarch64 untested** — everything above is x86_64 only so far.
+4. **`dms setup headless` does not support `miracle-wm`** (`unknown compositor "miracle-wm"
    (expected niri, hyprland, or mango)`) — DMS's own CLI limitation, not a packaging gap in this
-   repo.
+   repo. It does support `mango` (mangowm's `dms setup` name) as of that package now building.
 
 ## Reproducing this
 

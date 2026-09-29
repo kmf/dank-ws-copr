@@ -24,6 +24,7 @@ scratch to work on el10.
 ### Compositors
 - **hyprland** — dynamic tiling Wayland compositor, built from scratch (no reference spec existed anywhere)
 - **mir** / **miracle-wm** — Mir-based tiling compositor
+- **mangowm** — dwl-based compositor with eye-candy effects (blur, shadows, rounded corners via scenefx); needed a `wlroots0.20`/`scenefx`/`pixman`/`libdrm` chain to get there
 - **niri** — not packaged here; installs cleanly straight from [`yalter/niri`](https://copr.fedorainfracloud.org/coprs/yalter/niri/), no fork needed
 
 ### Terminal
@@ -40,6 +41,14 @@ scratch to work on el10.
 - **hyprtoolkit** — Hyprland's own native (non-Qt) GUI toolkit, required by the above
 - `iniparser` (bumped) — needed a pkgconfig file `hyprtoolkit`'s build requires; el10's own didn't
   ship one
+
+### mangowm dependency chain
+- **wlroots0.20** — Fedora's current wlroots (0.20.2), packaged side-by-side with el10's plain
+  `wlroots` 0.18.2 (still needed by `cage`)
+- **scenefx** (bumped to 0.5) — drop-in wlroots scene API replacement with blur/shadow/rounded-corner
+  effects
+- `pixman` (bumped) / `libdrm` (bumped) — both system-wide; same stable SONAME across these versions
+  as everything else already installed, so nothing needed rebuilding
 
 ### Greeter
 - **greetd** + `dms-greeter` — includes 4 forked Rust crate dependencies (`rust-pam-sys`,
@@ -94,18 +103,20 @@ sudo dnf install -y quickshell-git matugen cliphist danksearch dgop dankcalendar
 # 4. A compositor - niri comes from its own upstream COPR, not this repo
 sudo dnf copr enable -y yalter/niri
 sudo dnf install -y niri
-# or: sudo dnf install -y hyprland hyprland-guiutils   /   sudo dnf install -y miracle-wm
+# or: sudo dnf install -y hyprland hyprland-guiutils   /   sudo dnf install -y mangowm   /   sudo dnf install -y miracle-wm
 
 # 5. Terminal, greeter, optional extras
 sudo dnf install -y ghostty dms-greeter cava kf6-kimageformats
 
 # 6. Deploy the compositor config integration - installing `dms` alone does NOT
-# do this. Required for niri/hyprland (not yet supported for miracle-wm);
-# --no-systemd is required for hyprland specifically, since unlike niri it has
-# no built-in systemd session integration (dms.service would otherwise never
-# start under it - see PLAN.md's hyprland entry).
+# do this. Required for niri/hyprland/mangowm (not yet supported for
+# miracle-wm - dms's own CLI limitation); --no-systemd is required for
+# hyprland specifically, since unlike niri it has no built-in systemd session
+# integration (dms.service would otherwise never start under it - see
+# PLAN.md's hyprland entry).
 dms setup headless --compositor niri --no-systemd --terminal ghostty
 # or: dms setup headless --compositor hyprland --no-systemd --terminal ghostty
+# or: dms setup headless --compositor mango --no-systemd --terminal ghostty
 
 # 7. Enable the greeter and the DMS service
 sudo dms-greeter enable -y
@@ -130,6 +141,7 @@ systemctl --user enable --now dms
 - [dank-greeter](https://github.com/AvengeMedia/dank-greeter) — greetd greeter (`dms-greeter`)
 - [Hyprland](https://github.com/hyprwm/Hyprland) — dynamic tiling Wayland compositor
 - [Mir](https://github.com/canonical/mir) / [miracle-wm](https://github.com/miracle-wm-org/miracle-wm) — Mir-based tiling compositor
+- [mango (mangowm)](https://github.com/mangowm/mango) — dwl-based compositor with eye-candy effects
 - [Niri](https://github.com/YaLTeR/niri) — scrollable-tiling Wayland compositor (not packaged here, see above)
 - [Ghostty](https://github.com/ghostty-org/ghostty) — terminal emulator
 - [greetd](https://sr.ht/~kennylevinsen/greetd/) — minimal login manager daemon

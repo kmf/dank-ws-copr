@@ -1030,6 +1030,108 @@ anywhere), in build order:
 Real COPR builds queued in dependency order: iniparser (11035226, succeeded) -> cava rebuild
 (11035228, chained) ; hyprtoolkit (11035229) -> hyprland-guiutils (11035230, chained).
 
+## Step 23 — hyprwayland-scanner 0.4.6: completing an abandoned bump for real
+
+Preparing TESTING.md's evidence-based report (cross-checking every claim against real `copr-cli`
+output rather than memory) surfaced a real discrepancy: `specs/hyprwayland-scanner`'s checked-in
+spec claimed version 0.4.6, but the only COPR build ever published for it (11030603) was actually
+0.4.2 - the bump had been explored 2026-09-24 (for a suspected `aquamarine` "zero-size array" build
+issue) but, per its own header comment, never actually mock-built or confirmed necessary.
+
+Checked first whether the bump was even needed: `aquamarine`/`hyprland` only require
+`hyprwayland-scanner-devel >= 0.4.0`/`>= 0.3.10` respectively, both satisfied by 0.4.2 - the
+original build issue had nothing to do with the scanner version. Reverted the spec to 0.4.2 to
+match reality, then - rather than leave it stale - completed the bump for real: 0.4.6 (upstream's
+actual current latest) built in mock, installed, and `aquamarine` + `hyprland` both rebuilt and
+reinstalled against it as regression checks (`Hyprland --help` runs, `ldd`/`rpm -V` both clean).
+Also fixed two related reproducibility gaps found along the way: a stale/misnamed vendored udis86
+source under `specs/hyprland/` (committed under a shortened filename that didn't match the spec's
+actual `Source2`, which uses the full commit hash) and `aquamarine`'s own source tarball, which had
+never been committed at all (causing the regression-check rebuild to fail until fetched fresh).
+Excluded Hyprland's own 48MB main source tarball from git going forward (too large to be worth
+committing, same call as ghostty's vendor cache).
+
+Real COPR builds, in order: `hyprwayland-scanner` (11035382) -> `aquamarine` (11035384) ->
+`hyprland` (11035386) - all three succeeded.
+
+## Step 24 — the epel-10-x86_64 chroot: a real `dnf copr enable` failure
+
+User reported an error running the install script: `Repository 'epel-10-x86_64' does not exist in
+project 'kmf/dank-ws-copr'. Available repositories: 'centos-stream-10-x86_64'`. Reproduced directly
+on `durin` with `sudo dnf copr enable -y kmf/dank-ws-copr`.
+
+Root cause: a newer `dnf-plugins-core` auto-detects the local Copr chroot name as `epel-10-x86_64`
+(Copr's generic "Enterprise Linux 10" chroot, covering RHEL/CentOS Stream/Rocky/Alma uniformly) -
+not `centos-stream-10-x86_64`, the only chroot this project had ever enabled. Confirmed by checking
+the actual `.repo` file `dnf copr enable` wrote: `baseurl=.../epel-10-$basearch/`.
+
+Fixed by adding the second chroot to the project itself (`copr-cli modify kmf/dank-ws-copr --chroot
+centos-stream-10-x86_64 --chroot epel-10-x86_64` - passing both, since `modify --chroot` replaces
+the list rather than appending to it), then rebuilding **all 33 packages that existed at the time**
+for it, in the same dependency order used originally - Copr chroots don't share build artifacts
+with each other, so the new chroot started completely empty. Regenerated `miracle-wm`'s SRPM along
+the way (missing from `built-rpms/` and never committed to git - another real reproducibility gap,
+fixed the same way as Step 23's). All 33 succeeded. Verified live: `dnf copr enable` now succeeds,
+and `hyprland`/`dms`/`cava` all resolve and dry-run install cleanly from the newly-populated chroot.
+
+Hit one operational snag mid-task: `copr.fedorainfracloud.org` briefly stopped resolving via
+Tailscale's MagicDNS (`100.100.100.100`) specifically - general connectivity and public DNS
+(`8.8.8.8`) both worked fine throughout, isolating it to a transient MagicDNS hiccup unrelated to
+this project. Waited for it to recover rather than hack around it with a manual `/etc/hosts` entry.
+
+## Step 25 — mangowm: the last originally-blocked compositor, resolved
+
+User supplied a link to Terra's current Fedora 44 SRPM for mangowm 0.17.4
+(`repos.fyralabs.com/terra44-source/mangowm-0:0.17.4-1.fc44.src.rpm`). Downloaded and extracted it
+directly rather than trusting the spec at face value - found the exact same staleness pattern
+flagged for the earlier 0.16.3 assessment: Terra's spec still declares `BuildRequires:
+pkgconfig(wlroots-0.19)`, but 0.17.4's actual source (`meson.build`, extracted from the SRPM's own
+tarball) requires `wlroots-0.20 >=0.20.0` and `scenefx-0.5 >=0.5.0`. Terra's spec was simply never
+updated when upstream mango bumped its wlroots floor.
+
+Checked el10's real versions against every requirement one at a time before forking anything:
+`xkbcommon` >=1.8.0 already satisfied (1.13.1, bumped earlier this session for Hyprland - no new
+work). `pixman` >=0.46.0 needed bumping from el10's 0.43.4; checked SONAME stability first
+(`libpixman-1.so.0` unchanged across this range, confirmed against Fedora's own current 0.46.4
+spec) and a real reverse-dependency sweep (`dnf repoquery --whatrequires
+libpixman-1.so.0()(64bit)`: cairo, mutter, weston, wlroots, qemu-kvm, Xwayland, and this project's
+own hyprland/aquamarine/hyprtoolkit/niri/mir, 50+ packages) before bumping it **system-wide** -
+same class of safe decision as the earlier `libxkbcommon` bump, unlike the real SONAME-breaking
+lua/iniparser conflicts documented elsewhere.
+
+Forked Fedora's current unversioned `wlroots` spec (0.20.2) as `wlroots0.20`, following the exact
+naming pattern already established by this repo's own `wlroots0.19` (side-by-side install, since
+each wlroots minor version ships distinctly-named library/pkgconfig paths) - checked first that
+only `cage` depends on the plain `wlroots` package (`dnf repoquery --whatrequires wlroots`), so a
+third side-by-side version couldn't collide with anything. Hit one real, genuine build failure
+here: wlroots' own `meson.build` hard-enforces `libdrm >=2.4.129`, not just an RPM spec pin -
+confirmed via the actual meson error (`Dependency libdrm found: NO. Found 2.4.128 but need:
+'>=2.4.129'`) after initially (incorrectly) assuming relaxing the spec's own version floor would be
+enough. Bumped `libdrm` too, 2.4.128->2.4.134, system-wide, same SONAME-stability check as pixman
+(`libdrm.so.2` unchanged, 404 real reverse-dependency packages found via repoquery, all kept
+working unrebuilt).
+
+Bumped this repo's own `scenefx` back to 0.5/wlroots-0.20, superseding the 2026-09-24 decision to
+pin it at 0.4.1/wlroots-0.19 - that decision's whole premise (mango needing wlroots-0.19) rested on
+Terra's stale spec, not mango's real requirement. Checked first that nothing depended on the 0.4.1
+build (`rpm -q --whatrequires scenefx`) before replacing it in place.
+
+Corrected `mangowm.spec` itself to declare what 0.17.4's source actually needs, otherwise
+unmodified from Terra's structure. Built clean in mock on the first real attempt once the whole
+chain was in place - no iteration needed for `mangowm` itself. Installed locally (`mango --help`
+runs, `ldd`/`rpm -V` both clean) and regression-checked `Hyprland`/`niri` still ran fine, `dms
+doctor` warning count unchanged, after the system-wide pixman/libdrm bump.
+
+Real COPR builds, in dependency order, for **both** chroots (per Step 24): `pixman` (11047470 /
+11047484), `libdrm` (11047472 / 11047487), `wlroots0.20` (11047474 / 11047491), `scenefx` (11047475
+/ 11047492), `mangowm` (11047476 / 11047494) - all 10 succeeded. (Two earlier `epel-10-x86_64`
+queue attempts, `wlroots0.20`/`mangowm`, got mis-chained due to a scripting glitch - caught while
+still `importing`, cleanly canceled via `copr-cli cancel`, and re-queued correctly; not a build
+failure.)
+
+This closes out every compositor this project originally set out to support:
+`niri`/`hyprland`/`miracle-wm`/`mangowm` all build and install cleanly on el10.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
