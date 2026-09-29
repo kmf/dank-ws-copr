@@ -31,6 +31,10 @@ resolve and dry-run install cleanly from it).
 - **A real runtime bug was found and fixed**: DMS did not start under Hyprland by default (root
   cause: Hyprland has no built-in systemd session integration, unlike niri). See
   [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed).
+- **Verified independently of `durin`**: a genuinely clean CentOS Stream 10 container (no local
+  state, no pre-enabled repos) successfully installed the full stack via the real public COPR repos
+  and the published install script. See
+  [Fresh-box verification](#fresh-box-verification-independent-of-durin).
 - **The remaining known, documented issues** — see [Known Issues](#known-issues) — are narrow
   (two real but low-blast-radius package conflicts, aarch64 untested, one `dms` CLI limitation) and
   don't block the core DMS + niri/hyprland/mangowm/miracle-wm + ghostty + greetd stack.
@@ -214,6 +218,42 @@ and running, and the greeter is live on this exact machine as this report is wri
   (Copr chroots don't share build artifacts with each other) — all 33 succeeded. Verified live:
   `dnf copr enable` now succeeds, and `hyprland`/`dms`/`cava` all resolve and dry-run install
   cleanly from the newly-populated chroot.
+
+## Fresh-box verification (independent of `durin`)
+
+Every test above ran on `durin` — a machine with a lot of accumulated local state (system-wide
+`pixman`/`libdrm`/`xkbcommon`/`lua` bumps, every COPR already enabled, `dnf`'s cache already warm).
+To check this repo actually works for someone with none of that, pulled a genuinely clean
+`quay.io/centos/centos:stream10` container (not derived from `durin` in any way) and ran the exact
+public-facing flow a new user would:
+
+1. `dnf install dnf-plugins-core epel-release && crb enable`
+2. `dnf copr enable kmf/dank-ws-copr` — confirmed it auto-detects `epel-10-$basearch` here too (the
+   same real bug fixed earlier), not just on `durin`.
+3. Downloaded `scripts/dank-install-el10.sh` from its actual public raw GitHub URL (not copied from
+   the local filesystem) and ran it for real as an unprivileged sudo user:
+   `./dank-install-el10.sh -c niri -t ghostty -y`.
+
+**Result: every expected package installed correctly** — `niri`, `dms`, `dms-cli`, `dms-greeter`,
+`greetd`, `quickshell-git`, `matugen`, `cliphist`, `danksearch`, `dgop`, `dankcalendar-git`,
+`ghostty`, `cava`, `kf6-kimageformats` all landed with real, resolvable versions, confirmed via
+`rpm -qa` after the fact. `greetd`'s config was correctly rewritten to launch `niri`, and the
+`greeter` system account was created correctly (`uid=995`).
+
+Two things surfaced, both expected container limitations rather than real script bugs:
+- `chown: invalid user: 'greetd:greetd'` during greetd's own install scriptlet — a
+  `systemd-sysusers` ordering quirk from the container having no real systemd PID1, not a packaging
+  defect (the `greetd`/`greeter` accounts both end up created correctly regardless, confirmed via
+  `id`).
+- `systemctl --user enable --now dms` correctly failed with `--now cannot be used when systemd is
+  not running` (no real systemd PID1) — and the script's own hardening from an earlier fix (see
+  [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed)) caught this and printed the
+  intended graceful warning instead of silently reporting success.
+
+Neither is testable any further without a real VM (no `qemu`/`virt-install` available on `durin`)
+or a physical machine, which would be needed to also validate the graphical/login parts
+(`dms-greeter`'s actual UI, a real Hyprland/niri session) independent of `durin` - the end-to-end
+login test earlier in this report already covers that, just on `durin` itself.
 
 ## Known Issues
 
