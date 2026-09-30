@@ -315,6 +315,14 @@ unattended, from a cold boot:
 The VM (`dms-test-vm`, defined but shut off after the test) remains available on `durin` for future
 testing without needing to be reprovisioned from scratch.
 
+**Follow-up: a real login (not just the greeter) confirmed on this VM too.** Drove `greetd`'s own
+IPC socket directly (the same `create_session` -> PAM auth -> `start_session` protocol used for the
+`durin` end-to-end test) as a disposable throwaway user, authenticating for real and launching a
+genuine `Hyprland` session. Confirmed via `loginctl`/`ps`: a separate session started on
+`seat0`/`tty1`, held real DRM (`Virtual-1` output, `llvmpipe` rendering, no errors in
+`hyprland.log`), and stayed alive for the duration of the check. Cleaned up afterward (terminated
+the session, removed the test user) and confirmed `greetd` returned cleanly to its normal greeter.
+
 ## All four compositors tested for real on the VM
 
 Reused `dms-test-vm` (from the boot-to-login test above) to test every compositor this project
@@ -386,6 +394,21 @@ hardware) makes much easier to hit reliably; `mir`/`miracle-wm` still passed thi
 [End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms). Not something this repo's
 specs can fix downstream (it's in Mir's own C++ source, not a packaging concern) - worth reporting
 upstream to Mir directly if this proves to also affect real users on real hardware under load.
+
+**Follow-up: it's 100% reproducible in this VM, not intermittent.** Retried manually well past
+`systemd`'s 5-attempt crash-loop limit (`systemctl reset-failed` + `start` in a loop, ~50 real
+attempts total across several batches, including with a deliberate 2s gap before each `start` to
+rule out insufficient settling time). Confirmed via `busctl get-property` immediately before each
+attempt that `ActiveSession` was genuinely empty beforehand every time - it doesn't self-heal by
+waiting longer, only by a *new* session actually starting and winning the race against Mir's query.
+Tracked `miracle-wm`'s PID continuously at 0.2s resolution across a full restart cycle: a fresh
+process spawns each attempt (confirmed via changing PIDs) but none survived past roughly
+0.2-0.4 seconds - one early manual check briefly looked like a success (`pgrep` catching the
+process mid-life right before it crashed) but did not hold up under continuous tracking, and is
+called out here rather than left as a misleading result. Net finding: 0 stable sessions observed
+across roughly 50 total attempts in this VM. This makes the environment fully deterministic for
+reproduction purposes (useful for an upstream report) even though the underlying root cause is a
+timing race in principle.
 
 ## Known Issues
 
