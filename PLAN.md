@@ -33,15 +33,19 @@ Turning this into the actual artifact needs, roughly in order:
 4. Get the already-verified specs building successfully *in COPR's own build environment*, not just
    locally on `durin`'s mock — COPR's chroot/mock config should match, but this hasn't been
    confirmed with a real COPR build yet.
-5. ✅ **Done 2026-09-27, re-confirmed 2026-09-29 on a genuinely separate machine**: validated the
+5. ✅ **Done 2026-09-27, re-confirmed 2026-09-29–30 on genuinely separate machines**: validated the
    actual `dnf copr enable kmf/dank-ws-copr && dnf install ...` flow — found and fixed a real
    chroot-detection bug in the process (see "Repos to Enable on `durin`" below). Re-validated on a
-   clean `quay.io/centos/centos:stream10` container with zero state inherited from `durin` (no
-   pre-enabled repos, none of `durin`'s accumulated system-wide package bumps): `dnf copr enable`
-   and the full published `dank-install-el10.sh` install both succeeded, every expected package
-   landed correctly. Not yet a full VM/bare-metal test (no `qemu`/`virt-install` available on
-   `durin`), so the graphical/login parts still only have `durin`-based confirmation — see
-   TESTING.md's "Fresh-box verification" section for full detail.
+   clean `quay.io/centos/centos:stream10` container with zero state inherited from `durin`: `dnf
+   copr enable` and the full published `dank-install-el10.sh` install both succeeded, every
+   expected package landed correctly. Then installed `qemu-kvm`/`libvirt`/`virt-install` on `durin`
+   specifically to close the container's remaining gap (no real systemd PID1 or GPU) and ran a real
+   KVM VM (official CentOS Stream 10 cloud image, not derived from `durin`'s disk): booted
+   unattended straight into a working Hyprland greeter session from a cold boot, with a real
+   (virtual) GPU. Found and fixed a genuine pre-existing `durin` infrastructure gap along the way —
+   firewalld had no policy routing libvirt's NAT network to the internet at all (Docker had one,
+   libvirt didn't) — see TESTING.md's "Full VM boot-to-login test" section for the complete
+   root-cause trail and fix.
 
 - Repo: `gh kmf/dank-ws-copr` (**local git repo only so far — not yet pushed to GitHub**)
 - Build host: `durin` (Tailscale-connected, CentOS Stream 10) — used for spec development and

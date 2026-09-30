@@ -31,10 +31,13 @@ resolve and dry-run install cleanly from it).
 - **A real runtime bug was found and fixed**: DMS did not start under Hyprland by default (root
   cause: Hyprland has no built-in systemd session integration, unlike niri). See
   [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed).
-- **Verified independently of `durin`**: a genuinely clean CentOS Stream 10 container (no local
-  state, no pre-enabled repos) successfully installed the full stack via the real public COPR repos
-  and the published install script. See
-  [Fresh-box verification](#fresh-box-verification-independent-of-durin).
+- **Verified independently of `durin`, twice**: a genuinely clean CentOS Stream 10 container (no
+  local state, no pre-enabled repos) installed the full package set correctly via the real public
+  COPR repos and the published install script - see
+  [Fresh-box verification](#fresh-box-verification-independent-of-durin). A real KVM/QEMU VM then
+  closed the container's one gap: booted, unattended, straight into a working Hyprland greeter
+  session from a cold boot, with a real (virtual) GPU. See
+  [Full VM boot-to-login test](#full-vm-boot-to-login-test-independent-of-durin-real-systemd--gpu).
 - **The remaining known, documented issues** — see [Known Issues](#known-issues) — are narrow
   (two real but low-blast-radius package conflicts, aarch64 untested, one `dms` CLI limitation) and
   don't block the core DMS + niri/hyprland/mangowm/miracle-wm + ghostty + greetd stack.
@@ -250,10 +253,61 @@ Two things surfaced, both expected container limitations rather than real script
   [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed)) caught this and printed the
   intended graceful warning instead of silently reporting success.
 
-Neither is testable any further without a real VM (no `qemu`/`virt-install` available on `durin`)
-or a physical machine, which would be needed to also validate the graphical/login parts
-(`dms-greeter`'s actual UI, a real Hyprland/niri session) independent of `durin` - the end-to-end
-login test earlier in this report already covers that, just on `durin` itself.
+Neither was testable any further in a container - no real systemd PID1 or GPU to validate the
+graphical/login parts independent of `durin`. That gap is closed by the VM test below.
+
+## Full VM boot-to-login test (independent of `durin`, real systemd + GPU)
+
+Installed `qemu-kvm`/`libvirt`/`virt-install` on `durin` (hardware virtualization already available
+- `kvm_intel` was loaded) specifically to close the one gap the container test above couldn't cover:
+a real systemd PID1 and a real (virtual) GPU, needed to validate the actual boot-to-greeter-to-login
+flow independent of `durin` itself, not just package installation.
+
+**Setup**: downloaded the official `CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2` image
+directly from `cloud.centos.org` (not derived from `durin`'s own disk in any way), built a
+cloud-init NoCloud seed for unattended user/SSH provisioning, and created the VM with
+`virt-install` (4 vCPU, 4GB RAM, `virtio` disk/net/video, `cpu host-passthrough`).
+
+**A real, pre-existing infrastructure bug on `durin` surfaced immediately**: the VM had no outbound
+network at all. Root-caused in two parts, both genuine gaps in `durin`'s own firewall config, not
+libvirt bugs:
+1. firewalld had no policy connecting the `libvirt` zone (where libvirt's NAT network lives) to the
+   outside world at all - confirmed by inspecting the actual `nftables` ruleset directly
+   (`nat_POST_libvirt_allow`, the chain that should hold the masquerade rule, was completely empty).
+   Docker, installed on the same host, has its own working `docker-forwarding` firewalld policy;
+   nothing equivalent existed for libvirt. Fixed by creating one (`firewall-cmd --new-policy`,
+   `--add-ingress-zone=libvirt --add-egress-zone=ANY --add-masquerade`).
+2. Even after that, return traffic still couldn't reach the VM. Found via the same direct
+   `nft`/`iptables` inspection: Docker's own classic `iptables` `filter` table sets `FORWARD` chain
+   policy to `DROP` globally (well-known Docker behavior) with no equivalent allow rule for
+   `virbr0` traffic. Fixed with two targeted `firewall-cmd --direct` rules (outbound `-i virbr0
+   ACCEPT`, return `-o virbr0 -m conntrack --ctstate ESTABLISHED,RELATED ACCEPT`) - checked and
+   confirmed real, working `ping`/`curl`/`dnf makecache` connectivity from inside the VM only after
+   both fixes were in place.
+
+**Test performed**, entirely inside the VM over SSH, using only its own network access to the real
+internet (nothing copied from `durin`'s filesystem):
+1. `dnf install dnf-plugins-core epel-release && crb enable`
+2. Downloaded and ran the real published `dank-install-el10.sh` from its raw GitHub URL:
+   `./dank-install-el10.sh -c hyprland -t ghostty -y`
+3. Rebooted the VM for real (`sudo reboot`) - not just re-running a service.
+
+**Result: booted correctly straight into a working Hyprland greeter session**, entirely
+unattended, from a cold boot:
+- `greetd.service` started automatically via `systemd` (`systemctl get-default` → `graphical.target`,
+  `systemctl status greetd` → active, started at boot)
+- A genuine Hyprland process (`Hyprland --watchdog-fd 4`) came up as the greeter's compositor, with
+  quickshell (`qs`) running the actual DMS greeter UI on top - confirmed still running (not
+  crash-looped) after a delay
+- Real DRM: `hyprland.log` showed aquamarine detecting the actual `virtio-gpu` DRM device
+  (`/dev/dri/card0`, connector `Virtual-1`, "Red Hat, Inc. QEMU Monitor") and correctly falling
+  back from a failed hardware EGL/DRI2 init (expected - this VM has no real GPU passthrough) to
+  Mesa's `llvmpipe` software renderer, without crashing
+- Every expected package installed with real, resolvable versions (`hyprland-guiutils` included),
+  confirmed via `rpm -qa`
+
+The VM (`dms-test-vm`, defined but shut off after the test) remains available on `durin` for future
+testing without needing to be reprovisioned from scratch.
 
 ## Known Issues
 
