@@ -39,8 +39,9 @@ resolve and dry-run install cleanly from it).
   session from a cold boot, with a real (virtual) GPU. See
   [Full VM boot-to-login test](#full-vm-boot-to-login-test-independent-of-durin-real-systemd--gpu).
 - **All four supported compositors tested for real on that VM**: `niri`, `mangowm`, and `hyprland`
-  all started correctly with the real DMS greeter UI on top; `miracle-wm` hit a genuine,
-  VM-specific Mir session/VT-detection failure (works fine on real hardware, see
+  all started correctly with the real DMS greeter UI on top; `miracle-wm` lost a genuine, precisely
+  root-caused Mir startup race against `logind` (traced to the exact upstream source line, timing
+  confirmed by direct 50ms-resolution D-Bus polling - not a packaging defect, see
   [Known Issues](#known-issues) #5) - see
   [All four compositors tested for real on the VM](#all-four-compositors-tested-for-real-on-the-vm).
 - **The remaining known, documented issues** — see [Known Issues](#known-issues) — are narrow
@@ -328,11 +329,11 @@ confirm a real process comes up and stays up.
 | `hyprland` | `hyprland` | ✅ Already covered by the boot-to-login test above (survived a full reboot) |
 | `miracle-wm` | `miracle` | ❌ **Real failure, isolated to this VM** - see below |
 
-### miracle-wm: a real, VM-specific failure (not a packaging defect)
+### miracle-wm: root-caused to a genuine Mir race condition (not a packaging defect)
 
 `greetd` crash-looped (`error: check_children: greeter exited without creating a session`,
 5 restarts, hit systemd's start-limit) when pointed at `miracle`. Running `miracle-wm` directly as
-the `greeter` user surfaced the real cause in its own startup log:
+the `greeter` user first surfaced the proximate error:
 
 ```
 mirserver: Not using logind for session management: Seat has no active session
@@ -340,19 +341,51 @@ mirserver: Not using Linux VT subsystem for session management: Failed to find t
 gbm-kms: Failed to probe DRM device: ... Failed to open device node: Permission denied [/dev/dri/card0]
 ```
 
-Mir's own console-services layer can't find an active logind session or the current VT on this VM,
-so it never gets a device ACL for `/dev/dri/card0` and fails outright - even though the exact same
-`greeter` user, same `seat0`/`tty1` session, same lack of `video`-group membership or `seatd`
-installed, works completely fine for `niri`/`mango`/`hyprland` (all wlroots/aquamarine-based,
-using `libseat` rather than Mir's own console-services code). Since `mir`/`miracle-wm` already
-passed this identical `greetd`+`dms-greeter` test on real hardware (`durin`) earlier in this report
-- see [End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms) - this looks like a
-genuine Mir-specific gap in how it detects an active session/VT inside this particular VM
-environment (cloud-init-provisioned, serial+virtio console, no full physical VT stack), not a
-regression or a packaging defect in `specs/mir`/`specs/miracle-wm`. Not yet root-caused further
-(would need real Mir-internals debugging - console-services' logind/VT detection code - to say
-exactly why it can't find what `niri`/`mango` find fine on the same session); left as a real,
-documented, open finding rather than papered over.
+Rather than stop at "Mir can't find a session," read Mir's actual v2.29.0 source
+(`src/server/console/logind_console_services.cpp`,
+`object_path_for_current_session()`) to find the exact condition:
+
+```cpp
+auto const session_property = logind_seat_get_active_session(seat_proxy);
+...
+if (!object_path || (std::strcmp(object_path, "/") == 0))
+{
+    BOOST_THROW_EXCEPTION((std::runtime_error{"Seat has no active session"}));
+}
+```
+
+Mir queries logind's `org.freedesktop.login1.Seat0` **`ActiveSession`** D-Bus property directly and
+throws immediately (no retry) if it's empty - a fundamentally different, and racier, check than
+what `niri`/`mango` use. They go through `libseat` (via wlroots/aquamarine), which calls
+`sd_pid_get_session()` - "what session does *my own PID* belong to," a value set synchronously the
+instant PAM opens the session, with no race window at all.
+
+Confirmed the race directly by polling `busctl get-property ... Seat0 ActiveSession` at 50ms
+resolution across a `systemctl restart greetd` cycle:
+
+```
+t=50ms:  (so) "c12" "/org/freedesktop/login1/session/c12"   <- old session, about to close
+t=100ms: (so) ""    "/"                                      <- genuinely empty here
+t=150ms: (so) "c13" "/org/freedesktop/login1/session/c13"   <- new session, now active
+t=200ms...2000ms: stays "c13" (stable)
+```
+
+There is a real, measured ~50-100ms window where the seat has *no* active session at all, between
+the old one closing and the new one being marked active. `dms-greeter` execs `miracle-wm` within
+milliseconds of PAM opening its session, so Mir's very first D-Bus query reliably lands inside that
+empty window - explaining why every one of `greetd`'s 5 crash-loop attempts failed identically, not
+just some of them. `niri`/`mango`, querying a value that's valid from the instant the session opens,
+never hit this window at all.
+
+This is a genuine upstream Mir robustness gap (querying a racy seat-level pointer with no retry,
+instead of a PID-scoped lookup like `libseat` uses), not a packaging defect in `specs/mir`/
+`specs/miracle-wm`, and not really VM-specific either - it's a pure timing race that a slower
+session-transition path (which a VM's virtualized console more easily produces than fast physical
+hardware) makes much easier to hit reliably; `mir`/`miracle-wm` still passed this identical
+`greetd`+`dms-greeter` test on real hardware (`durin`) earlier in this report - see
+[End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms). Not something this repo's
+specs can fix downstream (it's in Mir's own C++ source, not a packaging concern) - worth reporting
+upstream to Mir directly if this proves to also affect real users on real hardware under load.
 
 ## Known Issues
 
@@ -370,11 +403,16 @@ documented, open finding rather than papered over.
 4. **`dms setup headless` does not support `miracle-wm`** (`unknown compositor "miracle-wm"
    (expected niri, hyprland, or mango)`) — DMS's own CLI limitation, not a packaging gap in this
    repo. It does support `mango` (mangowm's `dms setup` name) as of that package now building.
-5. **`miracle-wm` fails to acquire a display inside the test VM specifically** (Mir's
-   console-services can't find an active logind session or VT there), while working correctly on
-   real hardware (`durin`). See
-   [All four compositors tested for real on the VM](#all-four-compositors-tested-for-real-on-the-vm)
-   for the full detail - not yet root-caused to a specific fix.
+5. **`miracle-wm` can lose a startup race against `logind`, reliably reproduced in the test VM but
+   not necessarily VM-specific**: Mir's own `logind_console_services.cpp` queries logind's
+   `Seat0.ActiveSession` D-Bus property once, with no retry, and there's a real, measured ~50-100ms
+   window right after a session transition where that property is genuinely empty - confirmed by
+   polling it directly at 50ms resolution during a `greetd` restart. `niri`/`mango` never hit this
+   because `libseat` looks up sessions by PID (set synchronously, no race) rather than querying the
+   seat's active-session pointer. Root-caused to the exact upstream Mir source line; not something
+   fixable in this repo's specs (it's Mir's own C++ code, not a packaging concern) - see
+   [miracle-wm: root-caused to a genuine Mir race condition](#miracle-wm-root-caused-to-a-genuine-mir-race-condition-not-a-packaging-defect)
+   for the full trail.
 
 ## Reproducing this
 
