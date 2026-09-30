@@ -38,6 +38,11 @@ resolve and dry-run install cleanly from it).
   closed the container's one gap: booted, unattended, straight into a working Hyprland greeter
   session from a cold boot, with a real (virtual) GPU. See
   [Full VM boot-to-login test](#full-vm-boot-to-login-test-independent-of-durin-real-systemd--gpu).
+- **All four supported compositors tested for real on that VM**: `niri`, `mangowm`, and `hyprland`
+  all started correctly with the real DMS greeter UI on top; `miracle-wm` hit a genuine,
+  VM-specific Mir session/VT-detection failure (works fine on real hardware, see
+  [Known Issues](#known-issues) #5) - see
+  [All four compositors tested for real on the VM](#all-four-compositors-tested-for-real-on-the-vm).
 - **The remaining known, documented issues** — see [Known Issues](#known-issues) — are narrow
   (two real but low-blast-radius package conflicts, aarch64 untested, one `dms` CLI limitation) and
   don't block the core DMS + niri/hyprland/mangowm/miracle-wm + ghostty + greetd stack.
@@ -309,6 +314,46 @@ unattended, from a cold boot:
 The VM (`dms-test-vm`, defined but shut off after the test) remains available on `durin` for future
 testing without needing to be reprovisioned from scratch.
 
+## All four compositors tested for real on the VM
+
+Reused `dms-test-vm` (from the boot-to-login test above) to test every compositor this project
+supports the same way: install it, point `greetd` at it (`sed` the `--command` in
+`/etc/greetd/config.toml`, matching what `dms-greeter enable` itself writes), restart `greetd`,
+confirm a real process comes up and stays up.
+
+| Compositor | `dms-greeter --command` name | Result |
+|---|---|---|
+| `niri` | `niri` | ✅ Real `niri` process + DMS greeter UI (`qs`) on top, stable |
+| `mangowm` | `mango` | ✅ Real `mango` process + DMS greeter UI on top, stable, no errors in `journalctl` - **first time this compositor has been tested end-to-end**, not just install-tested |
+| `hyprland` | `hyprland` | ✅ Already covered by the boot-to-login test above (survived a full reboot) |
+| `miracle-wm` | `miracle` | ❌ **Real failure, isolated to this VM** - see below |
+
+### miracle-wm: a real, VM-specific failure (not a packaging defect)
+
+`greetd` crash-looped (`error: check_children: greeter exited without creating a session`,
+5 restarts, hit systemd's start-limit) when pointed at `miracle`. Running `miracle-wm` directly as
+the `greeter` user surfaced the real cause in its own startup log:
+
+```
+mirserver: Not using logind for session management: Seat has no active session
+mirserver: Not using Linux VT subsystem for session management: Failed to find the current VT
+gbm-kms: Failed to probe DRM device: ... Failed to open device node: Permission denied [/dev/dri/card0]
+```
+
+Mir's own console-services layer can't find an active logind session or the current VT on this VM,
+so it never gets a device ACL for `/dev/dri/card0` and fails outright - even though the exact same
+`greeter` user, same `seat0`/`tty1` session, same lack of `video`-group membership or `seatd`
+installed, works completely fine for `niri`/`mango`/`hyprland` (all wlroots/aquamarine-based,
+using `libseat` rather than Mir's own console-services code). Since `mir`/`miracle-wm` already
+passed this identical `greetd`+`dms-greeter` test on real hardware (`durin`) earlier in this report
+- see [End-to-end login test](#end-to-end-login-test-hyprland--greetd--dms) - this looks like a
+genuine Mir-specific gap in how it detects an active session/VT inside this particular VM
+environment (cloud-init-provisioned, serial+virtio console, no full physical VT stack), not a
+regression or a packaging defect in `specs/mir`/`specs/miracle-wm`. Not yet root-caused further
+(would need real Mir-internals debugging - console-services' logind/VT detection code - to say
+exactly why it can't find what `niri`/`mango` find fine on the same session); left as a real,
+documented, open finding rather than papered over.
+
 ## Known Issues
 
 1. **`lua` 5.5 (needed by Hyprland's `lua>=5.5,<5.6` floor) conflicts with el10's stock `lua-libs`
@@ -325,6 +370,11 @@ testing without needing to be reprovisioned from scratch.
 4. **`dms setup headless` does not support `miracle-wm`** (`unknown compositor "miracle-wm"
    (expected niri, hyprland, or mango)`) — DMS's own CLI limitation, not a packaging gap in this
    repo. It does support `mango` (mangowm's `dms setup` name) as of that package now building.
+5. **`miracle-wm` fails to acquire a display inside the test VM specifically** (Mir's
+   console-services can't find an active logind session or VT there), while working correctly on
+   real hardware (`durin`). See
+   [All four compositors tested for real on the VM](#all-four-compositors-tested-for-real-on-the-vm)
+   for the full detail - not yet root-caused to a specific fix.
 
 ## Reproducing this
 
