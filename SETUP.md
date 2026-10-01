@@ -1176,6 +1176,56 @@ reasoning as `epel-10-x86_64` earlier) - identical result, 36/37, `ghostty` the 
 this project builds now works on aarch64 except `ghostty`, for a reason entirely outside this
 repo's control.
 
+## Step 27 — alacritty: written from scratch, two real build-time bugs found and fixed
+
+User asked directly to add alacritty and kitty to the repo. Checked `kitty` first — already ships
+directly from EPEL (`kitty-0.47.1-3.el10_3`), confirmed via `dnf list kitty`, no packaging work
+needed at all. `alacritty` is the real work: checked Fedora dist-git (rawhide/epel9/epel10, all
+404) and Terra EL (also absent) — genuinely unpackaged anywhere, unlike every other
+terminal/compositor in this repo which had at least a starting-point spec to fork.
+
+The real reason nobody's packaged it for Fedora/EPEL: Alacritty's `Cargo.lock` pins ~150 crates,
+and Fedora's packaging policy requires each one as its own RPM — impractical for a single end-user
+app. Wrote the spec with a deliberate departure from this repo's own established Rust pattern
+(`rust-pam-sys` etc. follow the per-crate model): ran `cargo vendor` against the extracted source to
+produce a single vendor tarball (`Source1`), then built with `cargo build --release --offline`
+directly in `%build` rather than via `%cargo_prep`/`%cargo_build` (those macros assume the
+per-crate-BuildRequires model and fight a vendor directory). Documented the rationale in the spec's
+own header comment, same discipline as every other spec in this repo.
+
+Two real bugs found via actual mock build failures, not assumption:
+
+1. **`alacritty-msg` assumed to be a separate binary.** Saw `extra/man/alacritty-msg.1.scd` in
+   upstream's tree and pattern-matched it against this repo's own `hyprctl`/`hyprpm`-style companion
+   binaries — wrong guess. Real build failed in `%install`:
+   `install: cannot stat 'target/release/alacritty-msg': No such file or directory`. Checked
+   upstream's own `alacritty/Cargo.toml` directly — no `[[bin]]` section for it, confirming
+   `alacritty-msg` is a subcommand (`alacritty msg ...`) of the single `alacritty` binary, not a
+   standalone executable. Removed the bogus binary install/file lines; kept the man page install,
+   since it's still correct — it documents the subcommand.
+
+2. **Shipped terminfo collided with el10's own.** After fixing (1), the package built clean in mock,
+   but the real `dnf install` test failed at transaction-check time:
+   `file /usr/share/terminfo/a/alacritty from install of alacritty-... conflicts with file from
+   package ncurses-base-6.4-15.20240127.el10.noarch`. Checked directly — el10's stock `ncurses-base`
+   already ships its own `/usr/share/terminfo/a/alacritty` entry. Fixed by dropping our own `tic`
+   compile step and `%{_datadir}/terminfo` install entirely, replacing it with `Requires:
+   ncurses-base` instead (and dropping the now-unneeded `ncurses` BuildRequires, since `tic` was only
+   needed for the removed step).
+
+Real mock build succeeded clean after both fixes. Installed locally and smoke-tested:
+`alacritty --version` → `alacritty 0.17.0`, `ldd` shows no missing libraries, `rpm -V alacritty`
+clean, `desktop-file-validate` passes, all 5 man pages (`alacritty.1`, `alacritty-msg.1`,
+`alacritty.5`, `alacritty-bindings.5`, `alacritty-escapes.7`) present and readable via `man -w`.
+
+The `cargo vendor` tarball (66.6MB compressed) is excluded from git (added to `.gitignore`, same
+precedent as ghostty's larger zig-vendor cache) — only the small 1.6MB main source tarball is
+committed. No `specs/NOTICE.md` entry needed — that index only tracks *forked* specs; from-scratch
+ones (`aquamarine`, `hyprwire`, `hyprland`, etc.) were never listed there either.
+
+Real COPR builds queued to all 4 chroots: `centos-stream-10-x86_64` 11059796, `epel-10-x86_64`
+11059798, `centos-stream-10-aarch64` 11059800, `epel-10-aarch64` 11059801.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

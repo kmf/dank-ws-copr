@@ -17,6 +17,10 @@ SOURCES/*.tar.xz
 # reproducibility, but this one and the ghostty zig-vendor cache are too big to be worth it.
 specs/hyprland/Hyprland-*.tar.gz
 
+# cargo vendor caches - regenerable from Cargo.lock via `cargo vendor`, too big to be worth
+# committing (same reasoning as the ghostty zig-vendor cache above)
+specs/alacritty/alacritty-*-vendor.tar.gz
+
 # Mock chroot state
 /var/lib/mock/
 

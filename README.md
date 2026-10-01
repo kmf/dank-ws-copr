@@ -29,6 +29,10 @@ scratch to work on el10.
 
 ### Terminal
 - **ghostty** — GPU-accelerated terminal emulator
+- **alacritty** — GPU-accelerated terminal emulator, built from scratch (no distro spec exists
+  anywhere — not in Fedora/EPEL or Terra EL); vendors its ~150-crate Cargo dependency tree via
+  `cargo vendor` rather than Fedora's per-crate-RPM convention
+- **kitty** — not packaged here; installs cleanly straight from EPEL, no fork needed
 
 ### Hyprland dependency chain
 `aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics`, `hyprwayland-scanner`,
@@ -107,6 +111,7 @@ sudo dnf install -y niri
 
 # 5. Terminal, greeter, optional extras
 sudo dnf install -y ghostty dms-greeter cava kf6-kimageformats
+# or: sudo dnf install -y alacritty   /   sudo dnf install -y kitty (straight from EPEL)
 
 # 6. Deploy the compositor config integration - installing `dms` alone does NOT
 # do this. Required for niri/hyprland/mangowm (not yet supported for

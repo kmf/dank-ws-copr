@@ -16,10 +16,12 @@ resolve and dry-run install cleanly from it).
 
 ## Summary
 
-- **146/148 real COPR builds succeeded in final state** (server-side, clean-room chroots — not just
-  local `mock`) across all four chroots this project targets: `centos-stream-10-x86_64` (37/37),
-  `epel-10-x86_64` (37/37), `centos-stream-10-aarch64` (36/37), `epel-10-aarch64` (36/37) - 38
-  unique packages, aarch64 included. The only 2 real, unfixable-downstream failures are `ghostty`
+- **150/152 real COPR builds succeeded in final state** (server-side, clean-room chroots — not just
+  local `mock`) across all four chroots this project targets: `centos-stream-10-x86_64` (38/38),
+  `epel-10-x86_64` (38/38), `centos-stream-10-aarch64` (37/38), `epel-10-aarch64` (37/38) - 39
+  unique packages, aarch64 included, after `alacritty` (written entirely from scratch — unpackaged
+  anywhere in Fedora/EPEL or Terra EL) was added across all four chroots (11059796, 11059798,
+  11059800, 11059801, all succeeded). The only 2 real, unfixable-downstream failures are `ghostty`
   on both aarch64 chroots - see [aarch64: 36/37 packages build correctly](#aarch64-3637-packages-build-correctly).
   (The project's full build history has more failed entries than that - a batch from the first,
   mis-configured aarch64 attempt, all correctly diagnosed and fixed, then superseded by a clean
