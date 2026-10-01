@@ -1132,6 +1132,50 @@ failure.)
 This closes out every compositor this project originally set out to support:
 `niri`/`hyprland`/`miracle-wm`/`mangowm` all build and install cleanly on el10.
 
+## Step 26 — aarch64: 36/37 packages, closing the last Known Issue
+
+User asked directly whether aarch64 packages could be built. Real answer: yes, without needing any
+local aarch64 hardware - Copr has native aarch64 build workers, so this just meant enabling the
+chroots and queuing the same SRPMs.
+
+Checked the one real architectural risk first before committing to a full run: `specs/hyprland`
+unconditionally vendors `udis86` (an x86 instruction disassembler, used for Hyprland's
+plugin-loading diagnostics). Read `udis86`'s actual source file list
+(`decode.c`/`syn.c`/etc, github.com/canihavesomecoffee/udis86) - plain, portable C with no
+architecture-specific intrinsics or assembly, since it parses x86 opcodes as *data* rather than
+executing them. Concluded it should compile fine on aarch64 even though the feature it enables only
+makes semantic sense on x86_64 hosts, but didn't just assume - confirmed by the real build below
+instead.
+
+Added `centos-stream-10-aarch64` and `epel-10-aarch64` chroots (`copr-cli modify kmf/dank-ws-copr
+--chroot <all four>`), then queued the full 37-package dependency chain (same order established for
+the `epel-10-x86_64` chroot earlier). **First attempt: near-total failure** - checked one log
+(`hyprwayland-scanner`) directly: `No matching package to install: 'cmake(pugixml)'`. Compared
+`copr-cli get-chroot` between the working `centos-stream-10-x86_64` (has EPEL + CRB in
+`additional_repos` from earlier work) and the fresh `centos-stream-10-aarch64` (empty) - confirmed
+the gap directly, then spot-checked two more failures (`rust-pam-sys`: missing `rust-packaging`;
+`mir`: missing `cargo-rpm-macros`/`gflags-devel`/`glog-devel`/`glm-devel`) to confirm it was the
+same root cause across the board, not several unrelated issues. Fixed with `copr-cli edit-chroot
+centos-stream-10-aarch64 --repos "<EPEL aarch64 URL> <CRB aarch64 URL> copr://kmf/dank-ws-copr"`
+(the `epel-10` chroot family already bakes EPEL in by design, so only the plain `centos-stream-10`
+family needed this).
+
+Re-queued the full chain after the fix: **36/37 succeeded**, including `hyprland` (confirming the
+`udis86` assumption above for real) and `mir`/`miracle-wm` (its Rust `input-evdev-rs` component
+cross-compiled to aarch64 with no issue). The one real, unfixable-downstream failure: `ghostty`
+needs `zig`, and EPEL only ships the `zig` compiler binary for `x86_64` - confirmed directly against
+EPEL's own aarch64 package listing (only `zig-srpm-macros` exists there, no actual `zig` package).
+Nothing to fix in `specs/ghostty` - this is an upstream EPEL/Zig gap.
+
+Repeated the exact same queue against `epel-10-aarch64` (no chroot-config fix needed there, same
+reasoning as `epel-10-x86_64` earlier) - identical result, 36/37, `ghostty` the only failure.
+
+**Final state across all four chroots this project targets: 146/148 real COPR builds succeeded**
+(`centos-stream-10-x86_64` 37/37, `epel-10-x86_64` 37/37, `centos-stream-10-aarch64` 36/37,
+`epel-10-aarch64` 36/37). Closes the last remaining "aarch64 untested" Known Issue - every package
+this project builds now works on aarch64 except `ghostty`, for a reason entirely outside this
+repo's control.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).

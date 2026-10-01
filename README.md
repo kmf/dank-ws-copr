@@ -132,7 +132,8 @@ systemctl --user enable --now dms
 ## Architecture Support
 
 - **x86_64** — built and verified
-- **aarch64** — not yet built or tested
+- **aarch64** — built and verified, 36/37 packages (everything except `ghostty`, which needs `zig` —
+  not available for aarch64 in EPEL; see [TESTING.md](TESTING.md))
 
 ## Upstream Projects
 
@@ -148,7 +149,7 @@ systemctl --user enable --now dms
 
 ## Build Status
 
-- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/), targeting both `centos-stream-10-x86_64` and `epel-10-x86_64` (the chroot a real `dnf copr enable` actually auto-detects on this distro family — see [TESTING.md](TESTING.md))
+- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/), targeting `centos-stream-10-x86_64`, `epel-10-x86_64` (the chroot a real `dnf copr enable` actually auto-detects on this distro family — see [TESTING.md](TESTING.md)), and their aarch64 equivalents
 - **Dependencies (Tiers 1–3)**: [avengemedia/danklinux](https://copr.fedorainfracloud.org/coprs/avengemedia/danklinux/), [avengemedia/dms-git](https://copr.fedorainfracloud.org/coprs/avengemedia/dms-git/)
 - **niri**: [yalter/niri](https://copr.fedorainfracloud.org/coprs/yalter/niri/) (upstream, not built here)
 

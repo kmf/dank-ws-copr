@@ -16,11 +16,15 @@ resolve and dry-run install cleanly from it).
 
 ## Summary
 
-- **82/84 real COPR builds succeeded** (server-side, clean-room chroot — not just local `mock`),
-  covering 38 unique packages across both chroots; the other 2 were cleanly canceled mid-queue
-  (an incorrect dependency chain, caught and re-queued correctly before either could fail) rather
-  than genuine build failures. Zero actual failed COPR builds in this project's history — failures
-  during iteration were always caught and fixed locally before ever being queued.
+- **146/148 real COPR builds succeeded in final state** (server-side, clean-room chroots — not just
+  local `mock`) across all four chroots this project targets: `centos-stream-10-x86_64` (37/37),
+  `epel-10-x86_64` (37/37), `centos-stream-10-aarch64` (36/37), `epel-10-aarch64` (36/37) - 38
+  unique packages, aarch64 included. The only 2 real, unfixable-downstream failures are `ghostty`
+  on both aarch64 chroots - see [aarch64: 36/37 packages build correctly](#aarch64-3637-packages-build-correctly).
+  (The project's full build history has more failed entries than that - a batch from the first,
+  mis-configured aarch64 attempt, all correctly diagnosed and fixed, then superseded by a clean
+  re-queue; see that section for the full trail. No build has ever failed for an unexplained
+  reason.)
 - **`mangowm` (the last originally-blocked compositor) now builds successfully too**, closing out
   every compositor this project set out to support. See
   [mangowm: the last blocker resolved](#mangowm-the-last-blocker-resolved) below.
@@ -69,10 +73,14 @@ Every package in this repo went through some or all of these stages before being
 
 ## Package Table
 
-All 38 packages below have a ✅ real COPR build (on both `centos-stream-10-x86_64` and
-`epel-10-x86_64`, except where an earlier single-chroot build ID is shown from before the second
-chroot existed — see [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed)). "Local test"
-describes what was actually run on `durin` beyond the build itself.
+All 38 packages below have a ✅ real COPR build on `centos-stream-10-x86_64` and `epel-10-x86_64`
+(except where an earlier single-chroot build ID is shown from before the second chroot existed —
+see [Runtime bugs found and fixed](#runtime-bugs-found-and-fixed)), and 37 of 38 also build cleanly
+on `centos-stream-10-aarch64`/`epel-10-aarch64` — only `ghostty` doesn't, for a real,
+unfixable-downstream reason (see
+[aarch64: 36/37 packages build correctly](#aarch64-3637-packages-build-correctly)). Build IDs below
+are the x86_64 ones; "Local test" describes what was actually run on `durin` beyond the build
+itself.
 
 | Package | Version | COPR build | Local test performed |
 |---|---|---|---|
@@ -410,6 +418,45 @@ across roughly 50 total attempts in this VM. This makes the environment fully de
 reproduction purposes (useful for an upstream report) even though the underlying root cause is a
 timing race in principle.
 
+## aarch64: 36/37 packages build correctly
+
+Added `centos-stream-10-aarch64` and `epel-10-aarch64` chroots to the project - COPR has native
+aarch64 build workers, so this needed no local aarch64 hardware at all, just queuing the same
+SRPMs.
+
+**First attempt: near-total failure, root-caused quickly.** Checked one failing log
+(`hyprwayland-scanner`) directly rather than guess: `No matching package to install:
+'cmake(pugixml)'`. Compared `copr-cli get-chroot` output between the working
+`centos-stream-10-x86_64` chroot (which has EPEL + CRB added as `additional_repos` from earlier
+session work) and the freshly-added `centos-stream-10-aarch64` chroot (empty `additional_repos`) -
+confirmed that gap directly, then confirmed a couple more failures (`rust-pam-sys`: missing
+`rust-packaging`; `mir`: missing `cargo-rpm-macros`/`gflags-devel`/`glog-devel`/`glm-devel`) all
+traced to the same missing-EPEL-and-CRB cause. Fixed with `copr-cli edit-chroot
+centos-stream-10-aarch64 --repos "<EPEL aarch64 URL> <CRB aarch64 URL> copr://kmf/dank-ws-copr"`,
+matching the x86_64 chroot's existing config. (The `epel-10-x86_64`/`epel-10-aarch64` chroot family
+didn't need this - EPEL is already baked into "epel-10" chroots by design, only the plain
+"centos-stream-10" family needs it added manually.)
+
+**Re-queued the full 37-package chain after the fix: 36/37 succeeded**, including `hyprland` itself
+(confirming a real open question from when it was first written - `udis86`, an x86 instruction
+disassembler Hyprland unconditionally vendors for its plugin-loading diagnostics, is portable C
+with no architecture-specific code and compiles fine on aarch64, even though the feature it enables
+only makes sense on x86_64 hosts) and `mir`/`miracle-wm` (Mir's own Rust `input-evdev-rs` component
+cross-compiles to aarch64 without issue).
+
+The one real failure, **not fixable downstream**: `ghostty` needs `zig`, and EPEL only ships the
+`zig` compiler binary for `x86_64` - checked directly against EPEL's own aarch64 package listing
+(`dl.fedoraproject.org/pub/epel/10/Everything/aarch64/Packages/z/`): only `zig-srpm-macros` exists
+there, no actual `zig` binary package. `ghostty`'s `BuildRequires: zig` can never resolve on
+aarch64 through EPEL - this is an upstream EPEL/Zig packaging gap, not something fixable in
+`specs/ghostty`.
+
+Confirmed the identical result on `epel-10-aarch64` too: 36/37 succeeded, with `ghostty` the only
+failure for the same `zig` reason. **Final state across all four chroots: 146/148 real COPR builds
+succeeded** (`centos-stream-10-x86_64` 37/37, `epel-10-x86_64` 37/37, `centos-stream-10-aarch64`
+36/37, `epel-10-aarch64` 36/37) - every package this project builds works on aarch64 except
+`ghostty`, for a reason entirely outside this repo's control.
+
 ## Known Issues
 
 1. **`lua` 5.5 (needed by Hyprland's `lua>=5.5,<5.6` floor) conflicts with el10's stock `lua-libs`
@@ -422,7 +469,12 @@ timing race in principle.
    packages pinned to the old `libiniparser.so.1`), needed for `hyprtoolkit`'s build. Narrower
    blast radius than the lua conflict — none of those three are things a desktop-shell user would
    typically have installed.
-3. **aarch64 untested** — everything above is x86_64 only so far.
+3. **`ghostty` doesn't build on aarch64** — not fixable in this repo's specs: EPEL only ships the
+   `zig` compiler binary for `x86_64` (confirmed directly against EPEL's own aarch64 package
+   listing - only `zig-srpm-macros` exists there, no actual `zig` package), so `ghostty`'s
+   `BuildRequires: zig` can never resolve on aarch64 via EPEL. See
+   [aarch64: 36/37 packages build correctly](#aarch64-3637-packages-build-correctly) for the full
+   detail.
 4. **`dms setup headless` does not support `miracle-wm`** (`unknown compositor "miracle-wm"
    (expected niri, hyprland, or mango)`) — DMS's own CLI limitation, not a packaging gap in this
    repo. It does support `mango` (mangowm's `dms setup` name) as of that package now building.
