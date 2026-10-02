@@ -18,6 +18,16 @@ SOURCES/*.tar.xz
 specs/hyprland/Hyprland-*.tar.gz
 specs/zig/zig-*.tar.xz
 
+# Prebuilt shader-slang compiler release tarballs - build-time tool only,
+# re-fetched from shader-slang's own GitHub releases, too big to be worth
+# committing (same reasoning as the ghostty zig-vendor cache above)
+specs/kitty/slang-*.tar.gz
+# kitty's own main source tarball (12MB - bigger than this repo's usual
+# committed-source threshold), refetched via its own release URL as needed.
+# (kitty-vendor.tar.xz, the small regenerated go-vendor-tools archive, stays
+# committed - this pattern is version-numbered so it doesn't match that.)
+specs/kitty/kitty-[0-9]*.tar.xz
+
 # cargo vendor caches - regenerable from Cargo.lock via `cargo vendor`, too big to be worth
 # committing (same reasoning as the ghostty zig-vendor cache above)
 specs/alacritty/alacritty-*-vendor.tar.gz

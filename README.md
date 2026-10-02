@@ -32,7 +32,11 @@ scratch to work on el10.
 - **alacritty** — GPU-accelerated terminal emulator, built from scratch (no distro spec exists
   anywhere — not in Fedora/EPEL or Terra EL); vendors its ~150-crate Cargo dependency tree via
   `cargo vendor` rather than Fedora's per-crate-RPM convention
-- **kitty** — not packaged here; installs cleanly straight from EPEL, no fork needed
+- **kitty** — GPU-based terminal emulator; EPEL ships a working 0.47.1, but this repo tracks
+  latest upstream (0.49.2) instead. Needed a version-bumped fork of Fedora's own spec: a new
+  go-vendor-tools vendor archive, a bumped `golang >= 1.26.0` floor, and a vendored prebuilt
+  `slangc` (shader-slang compiler, unpackaged anywhere in Fedora/EPEL) as a build-time-only tool for
+  0.49's new custom-shaders feature
 
 ### Hyprland dependency chain
 `aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics`, `hyprwayland-scanner`,
@@ -111,7 +115,7 @@ sudo dnf install -y niri
 
 # 5. Terminal, greeter, optional extras
 sudo dnf install -y ghostty dms-greeter cava kf6-kimageformats
-# or: sudo dnf install -y alacritty   /   sudo dnf install -y kitty (straight from EPEL)
+# or: sudo dnf install -y alacritty   /   sudo dnf install -y kitty
 
 # 6. Deploy the compositor config integration - installing `dms` alone does NOT
 # do this. Required for niri/hyprland/mangowm (not yet supported for

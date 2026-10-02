@@ -85,7 +85,8 @@ populated on this host — see Open Question #2 below, now more concrete.
 
 **Tier 4 — runtime alternatives (not build-time deps of DMS itself)**
 - Compositors: niri, hyprland, mangowm, miraclewm
-- Terminals: ghostty, alacritty (both built from scratch); kitty needs no fork — ships straight from EPEL
+- Terminals: ghostty, alacritty (both built from scratch); kitty forked from Fedora's own spec to
+  track latest upstream (0.49.2) instead of EPEL's 0.47.1
 - Fonts/theming: material-symbols-fonts, qt6ct-kde
 - Greeter: greetd
 

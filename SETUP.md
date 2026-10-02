@@ -1306,6 +1306,62 @@ carrying the same detail as a durable pointer. Both aarch64 chroots were confirm
 original `additional_repos` state (EPEL+CRB+self-repo for `centos-stream-10-aarch64`, empty for
 `epel-10-aarch64`) before this investigation ended - no lasting change to the published project.
 
+## Step 29 — kitty: bumped to latest upstream (0.49.2), two real new build gaps found and fixed
+
+User asked to look at building the latest version of kitty instead of relying on EPEL's current
+0.47.1. Forked Fedora's own `epel10`-branch `kitty.spec` (0.47.1) rather than writing from scratch,
+since EPEL already has a working reference to bump from - same approach as the `scenefx`/`pixman`/
+`libdrm` version bumps earlier in this project.
+
+Checked first whether the bump was even safe: `go.mod` now requires `go 1.26.0`/toolchain
+`go1.26.3` (0.47.1 only needed `>=1.23.0`) - satisfied directly by CentOS Stream 10 AppStream's own
+`golang-1.26.7`, no new repo needed. `go-vendor-tools` (the tool Fedora's spec uses to regenerate
+the vendored Go module cache with license metadata, `Source3`) is available directly in EPEL10, so
+regenerated `kitty-vendor.tar.xz` for 0.49.2 with the real tool
+(`go_vendor_archive create --config go-vendor-tools.toml kitty-0.49.2/ -O kitty-vendor.tar.xz`), not
+a bare `go mod vendor` fallback.
+
+First real build (local mock) surfaced a genuine new dependency: 0.49.0 added a "custom shaders"
+feature (0.49.1's changelog entry about "packaging bug ... pipeline files" was the clue) that needs
+`slangc`, the shader-slang compiler (github.com/shader-slang/slang), to generate shader pipeline
+variants at build time. Not packaged anywhere in Fedora/EPEL, and building it from source would be
+its own large side-project (a full multi-backend compiler toolchain, unrelated to kitty itself).
+Checked how kitty's own upstream build tooling handles this: `./dev.sh deps` doesn't build it from
+source either, it downloads shader-slang's own prebuilt release binary - so this repo did the same,
+vendoring shader-slang's official prebuilt `linux-x86_64`/`linux-aarch64` release tarballs
+(glibc>=2.28 floor; el10 ships 2.39) as build-time-only `Source7`/`Source8`, pointed at via the
+`SLANGC` env var kitty's own `kitty/constants.py` already documents as an override mechanism.
+Verified the vendored binary actually runs on el10 before committing to the approach (`ldd`/`-version`
+smoke test), not assumed. `slangc` itself is never installed into the RPM - purely a build-time tool,
+same category as `cmake`/`go` themselves.
+
+Second real bug, found via the exact same build: `%check`'s test suite re-invokes `setup.py test` in
+a *separate* shell from `%build`, so the `SLANGC`/`LD_LIBRARY_PATH` exports didn't carry over,
+failing `test_exe`/`test_slang_build` with `slang compiler: slangc not found`. Fixed by re-exporting
+the same three variables (plus adding the tool's `bin/` dir to `PATH`, since kitty's own test calls
+`shutil.which()` which needs an actual PATH entry, not just `$SLANGC`) in `%check` too.
+
+Real mock build succeeded clean after both fixes. Installed locally and smoke-tested: `kitty
+--version`/`kitten --version` both report 0.49.2, `ldd` shows no missing libraries on either binary,
+`rpm -V` clean across all 4 subpackages, `desktop-file-validate` passes, and confirmed the actual
+point of all this - the shader pipeline - really works: `kitty +runpy` loads the shader module
+cleanly and `/usr/lib64/kitty/shaders/` contains real generated `.spv`/`.glsl` output, not an empty
+or stale directory.
+
+Real COPR builds queued to all 4 chroots: `centos-stream-10-x86_64` 11063068, `epel-10-x86_64`
+11063069, `centos-stream-10-aarch64` 11063071, `epel-10-aarch64` 11063072 - all 4 succeeded,
+including both aarch64 chroots (go cross-compiles and the vendored aarch64 `slangc` both worked
+first try). Noted a real but harmless COPR backend quirk: all 4 builds' `result_url` directories
+showed a `success` marker and the complete, correct RPM set well before `copr-cli status`/the
+`api_3/build` endpoint caught up to reflect it (still reporting `running` for several minutes after
+the actual build was done) - a backend state-propagation lag, not a build problem; confirmed by
+reading the actual result directory listings directly rather than trusting the lagging status field.
+
+The 1.6MB `kitty.appdata.xml` and 2.5MB `kitty-vendor.tar.xz` are small enough to commit directly
+(unlike alacritty's/ghostty's much larger vendor caches); the 12MB main source tarball and the two
+~29MB `slangc` release tarballs are excluded from git (`.gitignore`), re-fetched from their
+respective upstream release URLs as needed.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
