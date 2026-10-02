@@ -16,6 +16,7 @@ SOURCES/*.tar.xz
 # needed - small ones (a few hundred KB to low single-digit MB) get committed under specs/ for
 # reproducibility, but this one and the ghostty zig-vendor cache are too big to be worth it.
 specs/hyprland/Hyprland-*.tar.gz
+specs/zig/zig-*.tar.xz
 
 # cargo vendor caches - regenerable from Cargo.lock via `cargo vendor`, too big to be worth
 # committing (same reasoning as the ghostty zig-vendor cache above)

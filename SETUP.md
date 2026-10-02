@@ -1226,6 +1226,86 @@ ones (`aquamarine`, `hyprwire`, `hyprland`, etc.) were never listed there either
 Real COPR builds queued to all 4 chroots: `centos-stream-10-x86_64` 11059796, `epel-10-x86_64`
 11059798, `centos-stream-10-aarch64` 11059800, `epel-10-aarch64` 11059801.
 
+## Step 28 — zig/aarch64 investigated for ghostty, genuinely blocked (not resolved)
+
+User pointed at a third-party individual maintainer's packaging (github.com/lumarel/rpms-zig,
+COPR `lumarel/zig`) as a possible unblock for the one remaining known gap: `ghostty` needs `zig` +
+`zig-rpm-macros`, and EPEL doesn't ship `zig` for aarch64 at all (Fedora's own dist-git spec
+restricts `zig` to x86_64 on RHEL/EPEL specifically because its legacy gcc-transpiled bootstrap
+stage fails against EL's gcc on non-x86_64 - confirmed by reading Fedora's actual spec, not
+assumed; this is a Fedora EL-packaging choice, not an upstream Zig limitation). Investigated three
+approaches in order, each with real build evidence, none resolved:
+
+1. **Consume lumarel's working `zig` COPR directly** as an external repo on our two aarch64
+   chroots. Confirmed via the COPR API that their build (9937406) really did succeed on
+   `epel-10-aarch64`. Wired it in (`copr-cli edit-chroot --repos`, done only after explicitly
+   confirming the trust tradeoff with the user first), then test-built `ghostty` for real
+   (builds 11062938/11062939). **Broke immediately** - not the trust tradeoff, a real bug: zig's
+   `switch(arch)`-driven target initializer (`src/codegen/llvm.zig`) references
+   `LLVMInitializeMipsTarget` etc. for every arch regardless of which one you're actually
+   targeting, and redhat-hardened-ld's default `-Wl,-z,now` (eager/BIND_NOW symbol resolution)
+   resolves *every* referenced dynamic symbol at process startup, not just the ones actually
+   called. lumarel's zig links against their own custom "full-target" LLVM (confirmed via the COPR
+   API: their `zig` project also builds its own `llvm` package, pinned to an exact, aging
+   `20.1.4-2.full.el10`), but RPM's auto-generated runtime dependency on `zig` only tracks the
+   shared-library soname/symbol-version tag, not which target backends are actually compiled in -
+   so on our chroot (which also has stock EPEL enabled, unlike lumarel's own project), dnf resolved
+   zig's LLVM dependency against EPEL's newer `llvm20-libs-20.1.8-9.el10_3` instead, which is
+   missing 9 of the 18 targets zig references. Result: `/usr/bin/zig: symbol lookup error:
+   undefined symbol: LLVMInitializeMipsTarget, version LLVM_20.1` on first invocation - confirmed
+   directly from the real build log. **Reverted** the chroot repo addition immediately once
+   confirmed broken (`copr-cli edit-chroot --repos` back to the original EPEL+CRB+self-repo list).
+
+2. **Build zig ourselves against stock EPEL's `llvm20-devel`**, patching zig's own CMake
+   target-completeness check (`cmake/Findllvm.cmake`'s hardcoded 18-target list, which otherwise
+   hard-fails configure with `LLVM is missing target ARM`) down to the 9 targets EPEL's llvm20
+   actually has (confirmed via `llvm-config-20 --targets-built`). Spec + both patches committed at
+   `specs/zig/` with a `STATUS: BLOCKED` header documenting all of this in place, not queued to any
+   chroot. **Also broke**, one layer deeper: trimming the cmake *check* doesn't touch the actual
+   generated bootstrap source (`zig2.c`, produced by the legacy stage1→stage3 C-transpile path this
+   spec's `%build` uses), which references even *more* targets than the official 18-target list
+   (LoongArch, SPIRV showed up too) - confirmed via a real local `mock -r centos-stream-10-x86_64`
+   build (x86_64 has the identical trimmed-target `llvm20` as aarch64, so this was fully
+   reproducible locally without spending any aarch64 COPR time) that failed at static link time
+   with `undefined reference to LLVMInitializeLanaiTarget` and others. This is open-ended
+   whack-a-mole across at least two separate code-generation paths, not a one-time fix, and would
+   need re-auditing on every future zig version bump. A follow-up attempt to paper over it with
+   `-Wl,-z,lazy` (deferring symbol resolution instead of trimming the source) also doesn't work:
+   lazy binding only defers resolution of symbols that exist somewhere and haven't been touched
+   yet - a genuinely-absent symbol (removed because LLVM was never built with that target) fails at
+   *static link time* regardless of binding mode, confirmed by the same local build failing with a
+   linker error instead of a runtime one.
+
+3. **Build a full-target LLVM ourselves**, forking lumarel's own `rpms-llvm`
+   (github.com/lumarel/rpms-llvm, itself forked from Rocky Linux's RHEL llvm.spec with
+   `%global targets_to_build "all"` as the key change) and pointing zig at it instead of stock
+   EPEL's trimmed one. Measured lumarel's own real COPR build times for this via the COPR API
+   (build-chroot list): **~5 hours on aarch64** (4.88h and 5.67h across their two most recent full
+   rebuilds), right at COPR's default 5-hour build timeout. Read far enough into their ~3700-line
+   spec to find a second, deeper problem before attempting any build: their package names
+   (`llvm20`, `clang20-devel`, `lld20-devel`, etc.) are **identical to stock EPEL's own** - this
+   works fine for *their* COPR project only because it doesn't also enable stock EPEL as a
+   competing repo. Ours does (every other package in this repo depends on it), so building this
+   spec unmodified would reproduce approach 1's exact crash one level up. The correct fix - side-by-
+   side renaming, the same pattern already used in this repo for `wlroots0.19`/`wlroots0.20` - turns
+   out to need more than a package-name swap: lumarel's spec already parameterizes package names
+   cleanly through `pkg_name_llvm`/`pkg_name_clang`/etc. macros, but the actual **install paths**
+   (`%{_libdir}/llvm%{maj_ver}` → `/usr/lib64/llvm20/`, executable suffixes like
+   `/usr/bin/clang-20`) are hardcoded independently of those name macros and would still collide
+   with stock EPEL's files at the filesystem level even after a pure name rename. Fixing that
+   properly means auditing path references across the whole spec, not just the name macros - real,
+   substantial effort, explicitly **not attempted** once this was found; surfaced to the user as a
+   scope decision rather than silently taken on.
+
+**Bottom line**: all three paths hit real, build-confirmed blockers (not assumptions) - a runtime
+dependency-resolution trap, open-ended source-level whack-a-mole, and a filesystem-path-collision
+risk requiring a large rename audit. None was completed. `ghostty` on aarch64 remains the one known
+gap, same as before this investigation, but now with a documented, build-verified trail for
+whoever picks it up next. `specs/zig/zig.spec` is committed with its own `STATUS: BLOCKED` header
+carrying the same detail as a durable pointer. Both aarch64 chroots were confirmed back to their
+original `additional_repos` state (EPEL+CRB+self-repo for `centos-stream-10-aarch64`, empty for
+`epel-10-aarch64`) before this investigation ended - no lasting change to the published project.
+
 ## Next steps (not yet done)
 - Actually install/smoke-test dms + dms-greeter + quickshell end-to-end on this host to validate
   the existing avengemedia builds work as a stack (Open Question #3).
