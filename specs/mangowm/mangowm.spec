@@ -29,7 +29,7 @@
 %global mangowc_ver 0.12.5-1
 
 Name:           mangowm
-Version:        0.17.4
+Version:        0.17.5
 Release:        1%{?dist}
 Summary:        A modern, lightweight, high-performance Wayland compositor built on dwl
 License:        GPL-3.0-or-later AND MIT AND X11 AND CC0-1.0
@@ -84,6 +84,9 @@ dwl — crafted for speed, flexibility, and a customizable desktop experience.
 %{_userunitdir}/mango-session.target
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.17.5-1
+- Update to 0.17.5 (bugfix release; same wlroots-0.20/scenefx-0.5 deps)
+
 * Tue Sep 29 2026 Karl Fischer <karl@obsidian.co.za> - 0.17.4-1
 - Forked from Terra's published Fedora 44 SRPM for dank-ws-copr, fixed the
   stale wlroots-0.19/scenefx BuildRequires to match what 0.17.4's actual
