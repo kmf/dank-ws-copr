@@ -15,8 +15,8 @@
 %global modname dbusmock
 
 Name:             python-%{modname}
-Version:          0.38.0
-Release:          3%{?dist}
+Version:          0.38.1
+Release:          1%{?dist}
 Summary:          Mock D-Bus objects
 
 License:          LGPL-3.0-or-later
@@ -67,6 +67,9 @@ rm -rf python-%{modname}.egg-info
 %doc README.md COPYING
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.38.1-1
+- Update to 0.38.1
+
 * Thu Jul 16 2026 Fedora Release Engineering <releng@fedoraproject.org> - 0.38.0-3
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_45_Mass_Rebuild
 
