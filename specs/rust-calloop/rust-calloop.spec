@@ -14,7 +14,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           rust-calloop
-Version:        0.14.4
+Version:        0.14.5
 Release:        1%{?dist}
 Summary:        Callback-based event loop
 
@@ -131,18 +131,6 @@ use the "nix" feature of the "%{crate}" crate.
 %files       -n %{name}+nix-devel
 %ghost %{crate_instdir}/Cargo.toml
 
-%package     -n %{name}+pin-utils-devel
-Summary:        %{summary}
-BuildArch:      noarch
-
-%description -n %{name}+pin-utils-devel %{_description}
-
-This package contains library source intended for building other packages which
-use the "pin-utils" feature of the "%{crate}" crate.
-
-%files       -n %{name}+pin-utils-devel
-%ghost %{crate_instdir}/Cargo.toml
-
 %package     -n %{name}+signals-devel
 Summary:        %{summary}
 BuildArch:      noarch
@@ -186,5 +174,9 @@ use the "stream" feature of the "%{crate}" crate.
 %endif
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.14.5-1
+- Update to 0.14.5; drop +pin-utils-devel subpackage (feature removed upstream)
+- Refresh metadata patch for criterion 0.8.2 dev-dependency
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.14.4-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
