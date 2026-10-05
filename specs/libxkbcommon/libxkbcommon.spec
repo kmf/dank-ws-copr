@@ -14,8 +14,8 @@
 %global tarball_name xkbcommon
 
 Name:           libxkbcommon
-Version:        1.13.1
-Release:        4%{?gitdate:.%{gitdate}}%{?dist}
+Version:        1.13.2
+Release:        1%{?dist}
 Summary:        X.Org X11 XKB parsing library
 License:        MIT AND X11 AND MIT-CMU
 URL:            http://www.x.org
@@ -123,6 +123,7 @@ Requires:       %{name}-utils%{?_isa} = %{version}-%{release}
 %{_libexecdir}/xkbcommon/xkbcli-dump-keymap
 %{_libexecdir}/xkbcommon/xkbcli-dump-keymap-wayland
 %{_libexecdir}/xkbcommon/xkbcli-how-to-type
+%{_libexecdir}/xkbcommon/xkbcli-info
 %{_libexecdir}/xkbcommon/xkbcli-interactive
 %{_libexecdir}/xkbcommon/xkbcli-interactive-evdev
 %{_libexecdir}/xkbcommon/xkbcli-interactive-wayland
@@ -131,6 +132,7 @@ Requires:       %{name}-utils%{?_isa} = %{version}-%{release}
 %{_mandir}/man1/xkbcli-compile-keymap.1.gz
 %{_mandir}/man1/xkbcli-dump-keymap-wayland.1.gz
 %{_mandir}/man1/xkbcli-how-to-type.1.gz
+%{_mandir}/man1/xkbcli-info.1.gz
 %{_mandir}/man1/xkbcli-interactive-evdev.1.gz
 %{_mandir}/man1/xkbcli-interactive-wayland.1.gz
 %{_mandir}/man1/xkbcli-list.1.gz
@@ -144,6 +146,9 @@ Requires:       %{name}-utils%{?_isa} = %{version}-%{release}
 %{_mandir}/man1/xkbcli-dump-keymap-x11.1.gz
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 1.13.2-1
+- Update to 1.13.2; package the new xkbcli-info tool and man page in -utils
+
 * Thu Sep 10 2026 Zbigniew Jędrzejewski-Szmek <zbyszek@in.waw.pl> - 1.13.1-4
 - Rebuilt for libxml-2.5.4
 
@@ -430,4 +435,3 @@ Requires:       %{name}-utils%{?_isa} = %{version}-%{release}
 
 * Sat Nov 06 2010 Dave Airlie <airlied@redhat.com> 0.1.0-1.20101110
 - inital import
-
