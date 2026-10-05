@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           cava
-Version:        0.10.2
+Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Console-based Audio Visualizer for Alsa
 
@@ -53,6 +53,10 @@ rm -f %{buildroot}%{_libdir}/libiniparser.{a,la,so}
 /lib/kbd/consolefonts/cava.psf
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 1.0.0-1
+- Update to 1.0.0 - same autotools build and BuildRequires; builds against
+  iniparser 4.3.2 (libiniparser.so.4, unchanged SONAME)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.10.2-1
 - Forked from Fedora rawhide for dank-ws-copr (no epel9/epel10 branch
   exists there); needed for dms doctor's cava check

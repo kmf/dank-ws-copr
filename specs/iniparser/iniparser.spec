@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 Name:          iniparser
-Version:       4.2.6
+Version:       4.3.2
 Release:       1%{?dist}
 Summary:       C library for parsing "INI-style" files
 
@@ -70,6 +70,11 @@ rm -rf %{buildroot}%{_docdir}/%{name}/examples
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 4.3.2-1
+- Update to 4.3.2 - SONAME unchanged (libiniparser.so.4), API change
+  is additive only (new iniparser_load_buffer(), new installed version.h),
+  so cava and hyprtoolkit stay ABI-compatible without a rebuild
+
 * Fri Sep 25 2026 Karl Fischer <karl@obsidian.co.za> - 4.2.6-1
 - Forked from Fedora rawhide for dank-ws-copr: el10's own iniparser (EPEL,
   4.1) never shipped a pkgconfig file, needed by hyprtoolkit's build
