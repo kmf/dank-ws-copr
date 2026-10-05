@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           hyprcursor
-Version:        0.1.11
+Version:        0.1.13
 Release:        1%{?dist}
 Summary:        The hyprland cursor format, library and utilities
 
@@ -71,5 +71,8 @@ mv HyprBibataModernClassicSVG $HOME/.icons
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.1.13-1
+- Update to 0.1.13
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.1.11-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
