@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           rust-input
-Version:        0.9.1
+Version:        0.10.0
 Release:        1%{?dist}
 Summary:        Libinput bindings for rust
 
@@ -117,6 +117,78 @@ use the "libinput_1_21" feature of the "%{crate}" crate.
 %files       -n %{name}+libinput_1_21-devel
 %ghost %{crate_instdir}/Cargo.toml
 
+%package     -n %{name}+libinput_1_23-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_23-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_23" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_23-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_26-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_26-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_26" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_26-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_27-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_27-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_27" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_27-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_28-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_28-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_28" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_28-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_29-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_29-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_29" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_29-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_30-devel
+Summary:        %{summary}
+BuildArch:      noarch
+
+%description -n %{name}+libinput_1_30-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_30" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_30-devel
+%ghost %{crate_instdir}/Cargo.toml
+
 %package     -n %{name}+log-devel
 Summary:        %{summary}
 BuildArch:      noarch
@@ -172,5 +244,9 @@ use the "use_bindgen" feature of the "%{crate}" crate.
 %endif
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.10.0-1
+- Update to 0.10.0; add libinput_1_23..libinput_1_30 feature subpackages
+  (mir 2.30 accepts input >=0.8.3, <0.11)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.9.1-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec

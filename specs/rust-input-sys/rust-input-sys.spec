@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           rust-input-sys
-Version:        1.18.0
+Version:        1.19.0
 Release:        1%{?dist}
 Summary:        Bindgen generated unsafe libinput wrapper
 
@@ -23,8 +23,6 @@ License:        MIT
 URL:            https://crates.io/crates/input-sys
 Source:         %{crates_source}
 # Manually created patch for downstream crate metadata changes
-# * bump bindgen dependency from 0.69 to 0.71..0.72:
-#   https://github.com/Smithay/input.rs/pull/80
 # * regenerate bindings during the build by default
 Patch:          input-sys-fix-metadata.diff
 
@@ -141,6 +139,84 @@ use the "libinput_1_21" feature of the "%{crate}" crate.
 %files       -n %{name}+libinput_1_21-devel
 %ghost %{crate_instdir}/Cargo.toml
 
+%package     -n %{name}+libinput_1_23-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.23
+
+%description -n %{name}+libinput_1_23-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_23" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_23-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_26-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.26
+
+%description -n %{name}+libinput_1_26-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_26" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_26-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_27-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.27
+
+%description -n %{name}+libinput_1_27-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_27" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_27-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_28-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.28
+
+%description -n %{name}+libinput_1_28-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_28" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_28-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_29-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.29
+
+%description -n %{name}+libinput_1_29-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_29" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_29-devel
+%ghost %{crate_instdir}/Cargo.toml
+
+%package     -n %{name}+libinput_1_30-devel
+Summary:        %{summary}
+BuildArch:      noarch
+Requires:       pkgconfig(libinput) >= 1.30
+
+%description -n %{name}+libinput_1_30-devel %{_description}
+
+This package contains library source intended for building other packages which
+use the "libinput_1_30" feature of the "%{crate}" crate.
+
+%files       -n %{name}+libinput_1_30-devel
+%ghost %{crate_instdir}/Cargo.toml
+
 %package     -n %{name}+proc-macro2-devel
 Summary:        %{summary}
 BuildArch:      noarch
@@ -208,5 +284,10 @@ use the "use_bindgen" feature of the "%{crate}" crate.
 %endif
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 1.19.0-1
+- Update to 1.19.0; add libinput_1_23..libinput_1_30 feature subpackages
+- Refresh metadata patch (upstream now uses bindgen 0.72, only the
+  regenerate-bindings-by-default change remains)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 1.18.0-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
