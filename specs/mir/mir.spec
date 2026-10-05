@@ -70,14 +70,14 @@
 %global mircore_sover 3
 %global miroil_sover 10
 %global mirplatform_sover 35
-%global mirserver_sover 68
+%global mirserver_sover 69
 %global mirwayland_sover 7
 %global mirplatformgraphics_sover 24
 %global mirplatforminput_sover 11
 
 
 Name:           mir
-Version:        2.29.0
+Version:        2.30.0
 Release:        1%{?dist}
 Summary:        Next generation Wayland display server toolkit
 
@@ -375,6 +375,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/miral-shell.desktop
 
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 2.30.0-1
+- Update to 2.30.0; mirserver soversion 68 -> 69 (all other sovers unchanged)
+
 * Mon Sep 21 2026 Neal Gompa <ngompa@fedoraproject.org> - 2.29.0-1
 - Update to 2.29.0
 

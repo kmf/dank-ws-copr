@@ -21,7 +21,7 @@
 %endif
 
 Name:           miracle-wm
-Version:        0.11.0
+Version:        0.11.2
 Release:        1%{?dist}
 Summary:        A tiling Wayland compositor based on Mir
 
@@ -30,7 +30,6 @@ URL:            https://github.com/miracle-window-manager/miracle-wm
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 # Backport from upstream
-Patch0001:      https://github.com/miracle-wm-org/miracle-wm/commit/ae5afbf1f542ebfb17ad4901f8473ba4d05a489c.patch
 
 BuildRequires:  cmake
 BuildRequires:  gcc-c++
@@ -143,6 +142,10 @@ This package provides additional tools useful for debugging %{name}.
 
 
 %changelog
+* Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.11.2-1
+- Update to 0.11.2, rebuilt against mir 2.30.0 (libmirserver.so.69)
+- Drop upstreamed plugin-module install-path patch (ae5afbf, in 0.11.1+)
+
 * Mon Sep 21 2026 Neal Gompa <ngompa@fedoraproject.org> - 0.11.0-1
 - Update to 0.11.0
 
