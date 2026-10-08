@@ -51,6 +51,23 @@ scripts/promote.py --apply --packages cava,iniparser
 The [Promote workflow](.github/workflows/promote.yml) runs `--apply --wait` every Monday and can be
 started by hand (with a dry-run option); it needs a `COPR_CONFIG` repository secret.
 
+### Switching from stable to rolling
+
+```bash
+sudo dnf copr disable kmf/dank-ws-copr-stable
+sudo dnf copr enable -y kmf/dank-ws-copr
+sudo dnf distro-sync --refresh            # or: sudo dnf upgrade --refresh
+dnf repolist | grep dank-ws               # only kmf/dank-ws-copr should be listed
+```
+
+- **Forward-only in practice.** Going back (swap the two repo names above) means `dnf distro-sync`
+  has to downgrade anything rolling had newer; that can fail on dependency changes, in which case
+  wait until stable catches up and then distro-sync.
+- **Rolling can break.** Keep a way back (a snapshot, or `bootc rollback` on image installs).
+- **bootc / `kmf/dank-ws` images:** nothing to switch. The image is already built from rolling and
+  ships the repo disabled; packages change with each image update (`sudo bootc upgrade`), not via
+  `dnf`.
+
 ## Available Packages
 
 ### Compositors
