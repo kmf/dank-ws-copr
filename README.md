@@ -19,6 +19,10 @@ already has working el10 builds, we consume those directly — this repo only ex
 gaps: compositors and dependency chains that needed forking, patching, or building entirely from
 scratch to work on el10.
 
+## Release track
+
+This COPR is a single **rolling (unstable) track**. Packages are bumped to the latest upstream release and built as soon as they pass a local test build, with no bake period or separate stable repo. Expect occasional breakage; `kmf/dank-ws` images pick up new builds on their next rebuild, and `bootc rollback` returns to the previous image.
+
 ## Available Packages
 
 ### Compositors
