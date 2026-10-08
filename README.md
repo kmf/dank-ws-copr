@@ -7,6 +7,7 @@
   Compositors, terminal, and the full dependency chain — built with [COPR](https://copr.fedorainfracloud.org/)
 
 [![COPR Build](https://img.shields.io/badge/COPR-kmf%2Fdank--ws--copr-73ba25?labelColor=101418)](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/)
+[![COPR Stable](https://img.shields.io/badge/COPR_stable-kmf%2Fdank--ws--copr--stable-73ba25?labelColor=101418)](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr-stable/)
 [![CentOS Stream 10](https://img.shields.io/badge/CentOS_Stream-10-262577?labelColor=101418)](https://www.centos.org/centos-stream/)
 [![License](https://img.shields.io/badge/license-various-b9c8da?labelColor=101418)](specs/NOTICE.md)
 
@@ -19,9 +20,36 @@ already has working el10 builds, we consume those directly — this repo only ex
 gaps: compositors and dependency chains that needed forking, patching, or building entirely from
 scratch to work on el10.
 
-## Release track
+## Release tracks
 
-This COPR is a single **rolling (unstable) track**. Packages are bumped to the latest upstream release and built as soon as they pass a local test build, with no bake period or separate stable repo. Expect occasional breakage; `kmf/dank-ws` images pick up new builds on their next rebuild, and `bootc rollback` returns to the previous image.
+Two COPR projects carry the same packages for the same four chroots:
+
+| Track | COPR | What lands there |
+|---|---|---|
+| **Rolling** (unstable) | [`kmf/dank-ws-copr`](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/) | Every bump, built as soon as it passes a local test build. Expect occasional breakage. |
+| **Stable** | [`kmf/dank-ws-copr-stable`](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr-stable/) | Only builds that have baked on rolling for **7 days** and succeeded on every chroot. |
+
+Enable one or the other, never both. `kmf/dank-ws` images are built from **rolling**.
+
+### How promotion works
+
+COPR has no native promote, so [`scripts/promote.py`](scripts/promote.py) rebuilds the exact SRPM
+rolling built (its `srpm-builds` URL) in stable. Per package it takes the newest version that
+succeeded on all of the package's chroots at least `bake_days` ago and is newer than stable's, then
+submits them as chained COPR batches in the dependency order from
+[`promotion.yaml`](promotion.yaml). The same file holds `bake_days`, per-package chroots (`ghostty`
+is x86_64-only), `holds` (never promote), `pins` (only promote one exact version) and `groups` of
+ABI-coupled packages that only move together (e.g. `mir` + `miracle-wm`).
+
+```bash
+pip install copr pyyaml                  # needs ~/.config/copr from https://copr.fedorainfracloud.org/api/
+scripts/promote.py                       # dry run: shows what would be promoted and why
+scripts/promote.py --apply --wait        # submit to stable and wait for the builds
+scripts/promote.py --apply --packages cava,iniparser
+```
+
+The [Promote workflow](.github/workflows/promote.yml) runs `--apply --wait` every Monday and can be
+started by hand (with a dry-run option); it needs a `COPR_CONFIG` repository secret.
 
 ## Available Packages
 
@@ -107,6 +135,7 @@ sudo dnf copr enable -y avengemedia/danklinux
 sudo dnf copr enable -y avengemedia/dms-git
 
 # 2. This repo, for everything AvengeMedia doesn't build for el10
+#    (rolling; use kmf/dank-ws-copr-stable instead for the stable track)
 sudo dnf copr enable -y kmf/dank-ws-copr
 
 # 3. Core shell
@@ -162,7 +191,7 @@ systemctl --user enable --now dms
 
 ## Build Status
 
-- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/), targeting `centos-stream-10-x86_64`, `epel-10-x86_64` (the chroot a real `dnf copr enable` actually auto-detects on this distro family — see [TESTING.md](TESTING.md)), and their aarch64 equivalents
+- **COPR**: [kmf/dank-ws-copr](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr/) (rolling) and [kmf/dank-ws-copr-stable](https://copr.fedorainfracloud.org/coprs/kmf/dank-ws-copr-stable/) (stable, see [Release tracks](#release-tracks)), both targeting `centos-stream-10-x86_64`, `epel-10-x86_64` (the chroot a real `dnf copr enable` actually auto-detects on this distro family — see [TESTING.md](TESTING.md)), and their aarch64 equivalents
 - **Dependencies (Tiers 1–3)**: [avengemedia/danklinux](https://copr.fedorainfracloud.org/coprs/avengemedia/danklinux/), [avengemedia/dms-git](https://copr.fedorainfracloud.org/coprs/avengemedia/dms-git/)
 - **niri**: [yalter/niri](https://copr.fedorainfracloud.org/coprs/yalter/niri/) (upstream, not built here)
 
