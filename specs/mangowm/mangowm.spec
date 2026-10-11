@@ -29,7 +29,7 @@
 %global mangowc_ver 0.12.5-1
 
 Name:           mangowm
-Version:        0.17.5
+Version:        0.18.0
 Release:        1%{?dist}
 Summary:        A modern, lightweight, high-performance Wayland compositor built on dwl
 License:        GPL-3.0-or-later AND MIT AND X11 AND CC0-1.0
@@ -42,6 +42,8 @@ BuildRequires:  gcc
 BuildRequires:  gcc-c++
 BuildRequires:  pkgconfig(xcb)
 BuildRequires:  pkgconfig(xcb-icccm)
+BuildRequires:  pkgconfig(xcb-randr)
+BuildRequires:  pkgconfig(libdrm)
 BuildRequires:  pkgconfig(wayland-protocols)
 BuildRequires:  pkgconfig(wayland-server)
 BuildRequires:  pkgconfig(wlroots-0.20) >= 0.20.0
@@ -77,13 +79,22 @@ dwl — crafted for speed, flexibility, and a customizable desktop experience.
 %license LICENSE
 %{_bindir}/mango
 %{_bindir}/mmsg
+%{_bindir}/mangonag
 %{_sysconfdir}/mango/config.conf
+%{_sysconfdir}/mango/config.toml
 %{_datadir}/wayland-sessions/mango.desktop
 %{_datadir}/xdg-desktop-portal/mango-portals.conf
 %{_mandir}/man1/mmsg.1.*
+%{_mandir}/man1/mangonag.1.*
 %{_userunitdir}/mango-session.target
 
 %changelog
+* Sun Oct 11 2026 Karl Fischer <karl@obsidian.co.za> - 0.18.0-1
+- Update to 0.18.0; ships new mangonag helper and /etc/mango/config.toml
+- Add xcb-randr and libdrm BuildRequires
+- BREAKING: config keys renamed upstream; users must migrate with
+  upstream's migrate-config-keys.sh in ~/.config/mango
+
 * Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.17.5-1
 - Update to 0.17.5 (bugfix release; same wlroots-0.20/scenefx-0.5 deps)
 
