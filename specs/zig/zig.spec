@@ -27,7 +27,7 @@
 
 Name:           zig
 Version:        0.15.2
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Programming language for maintaining robust, optimal, and reusable software
 
 License:        MIT AND NCSA AND LGPL-2.1-or-later AND LGPL-2.1-or-later WITH GCC-exception-2.0 AND GPL-2.0-or-later AND GPL-2.0-or-later WITH GCC-exception-2.0 AND BSD-3-Clause AND Inner-Net-2.0 AND ISC AND LicenseRef-Fedora-Public-Domain AND GFDL-1.1-or-later AND ZPL-2.1
@@ -92,6 +92,12 @@ install -D -pm 0644 %{SOURCE2} %{buildroot}%{_rpmmacrodir}/macros.%{name}
 %{_rpmmacrodir}/macros.%{name}
 
 %changelog
+* Mon Oct 12 2026 Karl Fischer <karl@obsidian.co.za> - 0.15.2-3
+- macros.zig: set _zig_cache_dir from %%{_vpath_builddir} (as EPEL's
+  zig-rpm-macros does) instead of %%{builddir}, which EL10's rpm 4.19 leaves
+  unexpanded; the literal '%%' in the cache path broke LLD's archive writer
+  (UnableToWriteArchive) in ghostty's build
+
 * Sun Oct 11 2026 Karl Fischer <karl@obsidian.co.za> - 0.15.2-2
 - Repackage upstream's signed prebuilt static aarch64 release instead of
   building from source (source build blocked on EPEL10's trimmed llvm20)

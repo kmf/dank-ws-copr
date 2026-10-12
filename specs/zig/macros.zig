@@ -2,7 +2,7 @@
 
 %zig %{_bindir}/zig
 
-%_zig_cache_dir %{builddir}/zig-cache
+%_zig_cache_dir %{_vpath_builddir}/zig-cache
 %_zig_package_dir %{_zig_cache_dir}/p
 
 # expected features for each arch when targeting baseline
