@@ -27,7 +27,7 @@
 
 Name:           ghostty
 Version:        1.3.1
-Release:        3%{?dist}
+Release:        4%{?dist}
 # %%{evr} isn't a defined RPM macro on el10 (`rpm --eval '%%{evr}'` just echoes it back literally -
 # it's a newer Fedora-only convenience macro, not yet in el10's redhat-rpm-config/rpm). Discovered
 # the hard way: rpmbuild's "Possible unexpanded macro" warnings on every `%%{evr}` use throughout
@@ -229,7 +229,7 @@ tar --zstd -xf %{SOURCE2} -C "%{_zig_cache_dir}"
 # --prefix-exe-dir/--prefix-include-dir from `_zig_install_options` (see macros.zig). "-r fast"
 # maps to overriding `_zig_release_mode`; the rest map to `zig_install_options`.
 %global _zig_release_mode fast
-%global zig_install_options -Dversion-string="%{version}" -Dstrip=false -Dpie=true -Demit-docs -Demit-themes=false
+%global zig_install_options -Dversion-string="%{version}" -Dstrip=false -Dpie=true -Demit-docs -Demit-themes=true
 # el10's harfbuzz-devel (8.4.0) is too old for ghostty's bindings, which expect the newer
 # harfbuzz it vendors itself (11.0.0, fetched into the Source2 vendor cache above) - discovered
 # via a real build failure (`error: ... has no member named 'HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES'`).
@@ -263,6 +263,7 @@ rm -rf %{buildroot}%{_datadir}/terminfo/g/%{name}
 %{_bindir}/%{name}
 %{_datadir}/applications/%{appid}.desktop
 %{_datadir}/%{name}/doc/
+%{_datadir}/%{name}/themes/
 %{_datadir}/metainfo/%{appid}.metainfo.xml
 %{_datadir}/dbus-1/services/%{appid}.service
 %{_iconsdir}/hicolor/16x16/apps/%{appid}.png
@@ -338,6 +339,10 @@ rm -rf %{buildroot}%{_datadir}/terminfo/g/%{name}
 %{_datadir}/pkgconfig/libghostty-vt.pc
 
 %changelog
+* Wed Oct 14 2026 Karl Fischer <karl@obsidian.co.za> - 1.3.1-4
+- Ship ghostty's bundled themes (-Demit-themes=true); the iterm2_themes
+  dependency is already in the offline zig vendor archive (Source2)
+
 * Tue Oct 28 2025 Gilver E. <rockgrub@disroot.org> - 1.2.3-2
 - Disabled bundled themes
  * This is necessary to address licensing issues in the themes repo Ghostty uses
