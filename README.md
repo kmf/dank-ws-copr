@@ -38,6 +38,11 @@ scratch to work on el10.
   `slangc` (shader-slang compiler, unpackaged anywhere in Fedora/EPEL) as a build-time-only tool for
   0.49's new custom-shaders feature
 
+### Shell prompt
+- **starship** — cross-shell prompt; repackages upstream's official static (musl) release binaries
+  for x86_64 and aarch64 (SHA-256 verified), plus generated bash/zsh/fish completions. Replaces the
+  lagging third-party `atim/starship` COPR
+
 ### Hyprland dependency chain
 `aquamarine`, `hyprutils`, `hyprlang`, `hyprcursor`, `hyprgraphics`, `hyprwayland-scanner`,
 `hyprwire`, `hyprland-protocols`, `gtk4-layer-shell`, `libxkbcommon` (bumped), `lua` (bumped),
