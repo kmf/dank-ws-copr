@@ -29,7 +29,7 @@
 %global mangowc_ver 0.12.5-1
 
 Name:           mangowm
-Version:        0.18.0
+Version:        0.18.5
 Release:        1%{?dist}
 Summary:        A modern, lightweight, high-performance Wayland compositor built on dwl
 License:        GPL-3.0-or-later AND MIT AND X11 AND CC0-1.0
@@ -45,10 +45,10 @@ BuildRequires:  pkgconfig(xcb-icccm)
 BuildRequires:  pkgconfig(xcb-randr)
 BuildRequires:  pkgconfig(libdrm)
 BuildRequires:  pkgconfig(wayland-protocols)
-BuildRequires:  pkgconfig(wayland-server)
+BuildRequires:  pkgconfig(wayland-server) >= 1.23.1
 BuildRequires:  pkgconfig(wlroots-0.20) >= 0.20.0
 BuildRequires:  pkgconfig(xkbcommon) >= 1.8.0
-BuildRequires:  pkgconfig(libinput)
+BuildRequires:  pkgconfig(libinput) >= 1.27.1
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(libpcre2-8)
 BuildRequires:  pkgconfig(libcjson)
@@ -89,6 +89,12 @@ dwl — crafted for speed, flexibility, and a customizable desktop experience.
 %{_userunitdir}/mango-session.target
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.18.5-1
+- Update to 0.18.5 (0.18.1-0.18.5 bugfix/feature point releases;
+  same wlroots-0.20/scenefx-0.5 deps)
+- Declare meson floors already in CS10 AppStream: wayland-server >= 1.23.1,
+  libinput >= 1.27.1
+
 * Sun Oct 11 2026 Karl Fischer <karl@obsidian.co.za> - 0.18.0-1
 - Update to 0.18.0; ships new mangonag helper and /etc/mango/config.toml
 - Add xcb-randr and libdrm BuildRequires
