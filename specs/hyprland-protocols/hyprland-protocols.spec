@@ -23,7 +23,7 @@
 
 Name:           hyprland-protocols
 Version:        0.8.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Wayland protocol extensions for Hyprland
 BuildArch:      noarch
 
@@ -32,6 +32,7 @@ URL:            https://github.com/hyprwm/hyprland-protocols
 Source:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cmake
+BuildRequires:  gcc
 
 %description
 %{summary}.
@@ -64,6 +65,11 @@ Summary:        Wayland protocol extensions for Hyprland
 
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.8.0-2
+- Add gcc BuildRequires: 0.8.0 changed CMake LANGUAGES NONE to C, so
+  cmake now looks for a C compiler even though this remains a data-only
+  noarch package
+
 * Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.8.0-1
 - Update to 0.8.0 (workspace image-capture source and input-capture
   protocols; still CMake, LANGUAGES C)
