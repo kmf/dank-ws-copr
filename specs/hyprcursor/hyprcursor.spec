@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           hyprcursor
-Version:        0.1.13
+Version:        0.1.14
 Release:        1%{?dist}
 Summary:        The hyprland cursor format, library and utilities
 
@@ -19,7 +19,7 @@ License:        BSD-3-Clause
 URL:            https://github.com/hyprwm/hyprcursor
 Source:         %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 # test data - see header comment above for provenance
-Source1:        HyprBibataModernClassicSVG.tar.gz
+Source1:        https://src.fedoraproject.org/lookaside/pkgs/hyprcursor/HyprBibataModernClassicSVG.tar.gz/sha512/a1fff9d9a3a3b0de6824036559b495394a71bf56c25bd7cbd2bc0a3d51f74c09191c4695480ddc60e725a693d109aa7b174810ae43aa51542d0a8312a0e7e846/HyprBibataModernClassicSVG.tar.gz
 
 # https://fedoraproject.org/wiki/Changes/EncourageI686LeafRemoval
 ExcludeArch:    %{ix86}
@@ -71,6 +71,10 @@ mv HyprBibataModernClassicSVG $HOME/.icons
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.1.14-1
+- Update to 0.1.14 (cursor downscale clipping and resampling fixes)
+- Point Source1 at Fedora lookaside so COPR can fetch the test data
+
 * Mon Oct 05 2026 Karl Fischer <karl@obsidian.co.za> - 0.1.13-1
 - Update to 0.1.13
 
