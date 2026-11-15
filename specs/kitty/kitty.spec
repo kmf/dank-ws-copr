@@ -7,18 +7,18 @@
 #
 # Why this fork exists: EPEL10 already ships a working `kitty` (currently
 # 0.47.1) - this isn't a packaging gap, just a couple of point releases
-# behind upstream's latest (0.49.2, released 2026-10-01). This spec bumps to
+# behind upstream's latest (0.50.0, released 2026-11-03). This spec bumps to
 # that latest version, since the user asked specifically for "the latest
 # version of kitty" rather than EPEL's current one.
 #
 # Changes vs. Fedora's epel10 0.47.1 spec:
-#   - Version bumped 0.47.1 -> 0.49.2.
-#   - BuildRequires: golang >= 1.23.0 -> >= 1.26.0 (kitty's own go.mod now
-#     requires go 1.26.0/toolchain go1.26.3 - checked directly, not assumed;
-#     CentOS Stream 10 AppStream already ships golang 1.26.7, so no new repo
+#   - Version bumped 0.47.1 -> 0.50.0.
+#   - BuildRequires: golang >= 1.23.0 -> >= 1.26.0 (kitty 0.50.0's go.mod
+#     requires go 1.26.0/toolchain go1.26.10 - checked directly, not assumed;
+#     CentOS Stream 10 AppStream now ships golang 1.27.3, so no new repo
 #     dependency).
-#   - Source3 (kitty-vendor.tar.xz) regenerated for 0.49.2 via `go_vendor_archive
-#     create --config go-vendor-tools.toml kitty-0.49.2/ -O kitty-vendor.tar.xz`
+#   - Source3 (kitty-vendor.tar.xz) regenerated for 0.50.0 via `go_vendor_archive
+#     create --config go-vendor-tools.toml kitty-0.50.0/ -O kitty-vendor.tar.xz`
 #     (go-vendor-tools is available directly in EPEL10, so this didn't need a
 #     plain `go mod vendor` fallback - same real tool Fedora's own spec uses,
 #     just run out-of-band since EPEL doesn't enable the Fedora-only
@@ -42,7 +42,7 @@
 #     binary; it is never installed into the RPM or shipped to users.
 #   - Otherwise no structural changes needed: `tools/cmd`'s Go kitten build
 #     path, the Go module path, and every C pkgconfig BuildRequires are
-#     unchanged between 0.47.1 and 0.49.2 (checked against CentOS Stream 10's
+#     unchanged between 0.47.1 and 0.50.0 (checked against CentOS Stream 10's
 #     actual available versions, not assumed - harfbuzz-devel 8.4.0, wayland-
 #     protocols-devel 1.41, pkgconfig(libxxhash) 0.8.4, simde-static 0.8.2,
 #     cairo-devel, wayland-devel, lcms2-devel, ncurses, python3-devel 3.12 all
@@ -59,7 +59,7 @@
 %endif
 
 Name:           kitty
-Version:        0.49.2
+Version:        0.50.0
 Release:        1%{?dist}
 Summary:        Cross-platform, fast, feature full, GPU based terminal emulator
 
@@ -350,6 +350,12 @@ desktop-file-validate %{buildroot}/%{_datadir}/applications/*.desktop
 
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.50.0-1
+- Update to 0.50.0 (docked windows, session restore, touchscreen, and a
+  remote-control auth bypass fix). Regenerated the go-vendor-tools vendor
+  archive; golang floor stays >= 1.26.0 (go.mod toolchain is now go1.26.10;
+  CS10 AppStream has 1.27.3). No new C/system BuildRequires.
+
 * Fri Oct 02 2026 Karl Fischer <karl@obsidian.co.za> - 0.49.2-1
 - Bump to latest upstream (0.49.2) - EPEL10 ships 0.47.1, user asked for
   latest. Regenerated the go-vendor-tools vendor archive for this version;
