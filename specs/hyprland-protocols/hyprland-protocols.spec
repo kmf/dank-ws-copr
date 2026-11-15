@@ -22,7 +22,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           hyprland-protocols
-Version:        0.7.1
+Version:        0.8.0
 Release:        1%{?dist}
 Summary:        Wayland protocol extensions for Hyprland
 BuildArch:      noarch
@@ -64,5 +64,9 @@ Summary:        Wayland protocol extensions for Hyprland
 
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.8.0-1
+- Update to 0.8.0 (workspace image-capture source and input-capture
+  protocols; still CMake, LANGUAGES C)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.7.1-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec, bumped to 0.7.1
