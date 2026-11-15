@@ -14,14 +14,14 @@
 # hwdata, OpenGL/GLES3 (mesa-libGLES-devel, confirmed present via a real hyprgraphics build) - all
 # confirmed present/satisfiable.
 #
-# SOVERSION 14 (checked upstream CMakeLists.txt at v0.15.1 directly:
-# `set_target_properties(aquamarine PROPERTIES VERSION ... SOVERSION 14)`).
+# SOVERSION 15 (checked upstream CMakeLists.txt at v0.16.0 directly:
+# `set_target_properties(aquamarine PROPERTIES VERSION ... SOVERSION 15)`).
 # STATUS: not yet mock-built - first genuinely from-scratch spec this session with a full upstream
 # CMakeLists.txt as the only reference (no other distro's packaging to structurally crib from).
 # ---------------------------------------------------------------------------
 
 Name:           aquamarine
-Version:        0.15.1
+Version:        0.16.0
 Release:        1%{?dist}
 Summary:        A very light linux rendering backend library
 
@@ -29,7 +29,7 @@ License:        BSD-3-Clause
 URL:            https://github.com/hyprwm/aquamarine
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
-BuildRequires:  cmake
+BuildRequires:  cmake >= 3.27
 BuildRequires:  gcc-c++
 BuildRequires:  mesa-libGLES-devel
 BuildRequires:  hyprwayland-scanner-devel >= 0.4.0
@@ -76,7 +76,7 @@ against aquamarine, most notably Hyprland.
 %license LICENSE
 %doc README.md
 %{_libdir}/libaquamarine.so.%{version}
-%{_libdir}/libaquamarine.so.14
+%{_libdir}/libaquamarine.so.15
 
 %files devel
 %{_includedir}/aquamarine/
@@ -84,6 +84,9 @@ against aquamarine, most notably Hyprland.
 %{_libdir}/pkgconfig/aquamarine.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.16.0-1
+- Update to 0.16.0 (SOVERSION 14 -> 15; cmake_minimum_required is now 3.27)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.15.1-1
 - Initial dank-ws-copr package, written from scratch (no distro reference spec exists anywhere);
   structured to match this repo's hyprutils/hyprcursor/hyprgraphics conventions
