@@ -27,7 +27,7 @@
 
 Name:           hyprtoolkit
 Version:        0.6.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A modern C++ Wayland-native GUI toolkit
 
 License:        BSD-3-Clause
@@ -103,6 +103,10 @@ source /usr/lib/gcc-toolset/16-env.source
 %{_libdir}/pkgconfig/hyprtoolkit.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.6.0-2
+- Rebuild against aquamarine 0.16.0 (SOVERSION 15) and hyprgraphics
+  0.6.0 (SOVERSION 5)
+
 * Fri Sep 25 2026 Karl Fischer <karl@obsidian.co.za> - 0.6.0-1
 - Initial dank-ws-copr package, written from scratch (no distro reference
   spec exists anywhere); needed by hyprland-guiutils
