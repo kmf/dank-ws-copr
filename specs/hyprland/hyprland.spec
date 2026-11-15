@@ -53,7 +53,7 @@
 %global glaze_version 7.2.0
 
 Name:           hyprland
-Version:        0.56.2
+Version:        0.57.2
 Release:        1%{?dist}
 Summary:        A dynamic tiling Wayland compositor
 
@@ -65,18 +65,18 @@ Source2:        https://github.com/canihavesomecoffee/udis86/archive/%{udis86_co
 
 BuildRequires:  gcc-toolset-16-gcc-c++
 BuildRequires:  gcc-toolset-16-gcc-plugin-annobin
-BuildRequires:  cmake
+BuildRequires:  cmake >= 3.30
 BuildRequires:  git-core
 BuildRequires:  python3
 BuildRequires:  mesa-libGLES-devel
 BuildRequires:  glslang-devel
-BuildRequires:  pkgconfig(aquamarine) >= 0.9.3
+BuildRequires:  pkgconfig(aquamarine) >= 0.15.0
 BuildRequires:  pkgconfig(hyprlang) >= 0.6.7
 BuildRequires:  pkgconfig(hyprcursor) >= 0.1.7
-BuildRequires:  pkgconfig(hyprutils) >= 0.14.0
+BuildRequires:  pkgconfig(hyprutils) >= 0.14.3
 BuildRequires:  pkgconfig(hyprgraphics) >= 0.5.1
 BuildRequires:  pkgconfig(hyprwire)
-BuildRequires:  pkgconfig(hyprland-protocols) >= 0.7.0
+BuildRequires:  pkgconfig(hyprland-protocols) >= 0.8.0
 BuildRequires:  hyprwayland-scanner-devel >= 0.3.10
 BuildRequires:  pkgconfig(xkbcommon) >= 1.11.0
 BuildRequires:  pkgconfig(uuid)
@@ -95,6 +95,7 @@ BuildRequires:  pkgconfig(gio-2.0)
 BuildRequires:  pkgconfig(re2)
 BuildRequires:  pkgconfig(muparser)
 BuildRequires:  pkgconfig(lcms2)
+BuildRequires:  pkgconfig(libcanberra)
 BuildRequires:  pkgconfig(lua) >= 5.5
 BuildRequires:  pkgconfig(tomlplusplus)
 BuildRequires:  readline-devel
@@ -144,6 +145,13 @@ source /usr/lib/gcc-toolset/16-env.source
 %install
 source /usr/lib/gcc-toolset/16-env.source
 %cmake_install
+# Upstream installs the user unit into CMAKE_INSTALL_LIBDIR/systemd/user
+# (%{_libdir}, typically /usr/lib64), which systemd does not search. Move it.
+if [ -f %{buildroot}%{_libdir}/systemd/user/hyprland-session.target ]; then
+    mkdir -p %{buildroot}%{_userunitdir}
+    mv %{buildroot}%{_libdir}/systemd/user/hyprland-session.target %{buildroot}%{_userunitdir}/
+    rmdir -p --ignore-fail-on-non-empty %{buildroot}%{_libdir}/systemd/user %{buildroot}%{_libdir}/systemd || :
+fi
 
 %files
 %license LICENSE
@@ -155,6 +163,7 @@ source /usr/lib/gcc-toolset/16-env.source
 %{_bindir}/start-hyprland
 %{_datadir}/wayland-sessions/hyprland.desktop
 %{_datadir}/wayland-sessions/hyprland-uwsm.desktop
+%{_userunitdir}/hyprland-session.target
 %{_datadir}/hypr/
 %{_datadir}/xdg-desktop-portal/hyprland-portals.conf
 %{_datadir}/bash-completion/completions/hyprctl
@@ -170,5 +179,15 @@ source /usr/lib/gcc-toolset/16-env.source
 %{_datadir}/pkgconfig/hyprland.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.57.2-1
+- Update to 0.57.2 (feature release plus 0.57.1/0.57.2 regression fixes)
+- Raise floors to match 0.57.2 CMakeLists: aquamarine >= 0.15.0,
+  hyprutils >= 0.14.3, hyprland-protocols >= 0.8.0, cmake >= 3.30
+- Add pkgconfig(libcanberra) (new required dep in 0.57)
+- Package new hyprland-session.target, moved from libdir/systemd/user to
+  %{_userunitdir}
+- NOTE: 0.57.0 moves two config options from `misc` into a new `layers`
+  category (deprecation notices are included)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.56.2-1
 - Initial dank-ws-copr package, written from scratch (no distro reference spec exists anywhere)
