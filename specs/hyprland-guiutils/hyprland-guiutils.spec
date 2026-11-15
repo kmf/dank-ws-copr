@@ -11,7 +11,7 @@
 
 Name:           hyprland-guiutils
 Version:        0.2.2
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Hyprland GUI utilities (dialog, welcome, update/donate screens)
 
 License:        BSD-3-Clause
@@ -59,6 +59,9 @@ source /usr/lib/gcc-toolset/16-env.source
 %{_bindir}/hyprland-donate-screen
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.2.2-2
+- Rebuild against hyprtoolkit 0.6.0-2 (aquamarine/hyprgraphics soname bumps)
+
 * Fri Sep 25 2026 Karl Fischer <karl@obsidian.co.za> - 0.2.2-1
 - Initial dank-ws-copr package, written from scratch (no distro reference
   spec exists anywhere, under this name or its predecessor
