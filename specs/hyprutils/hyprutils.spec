@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 
 Name:           hyprutils
-Version:        0.14.2
+Version:        0.14.3
 Release:        1%{?dist}
 Summary:        Hyprland utilities library used across the ecosystem
 
@@ -62,5 +62,8 @@ Development files for %{name}.
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.14.3-1
+- Update to 0.14.3 (utf8 header and LC_MESSAGES support; SOVERSION still 13)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.7.1-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
