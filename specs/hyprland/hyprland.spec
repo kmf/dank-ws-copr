@@ -54,7 +54,7 @@
 
 Name:           hyprland
 Version:        0.57.2
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A dynamic tiling Wayland compositor
 
 License:        BSD-3-Clause
@@ -166,11 +166,8 @@ fi
 %{_userunitdir}/hyprland-session.target
 %{_datadir}/hypr/
 %{_datadir}/xdg-desktop-portal/hyprland-portals.conf
-%{_datadir}/bash-completion/completions/hyprctl
 %{_datadir}/bash-completion/completions/hyprpm
-%{_datadir}/fish/vendor_completions.d/hyprctl.fish
 %{_datadir}/fish/vendor_completions.d/hyprpm.fish
-%{_datadir}/zsh/site-functions/_hyprctl
 %{_datadir}/zsh/site-functions/_hyprpm
 %{_mandir}/man1/*
 
@@ -179,6 +176,10 @@ fi
 %{_datadir}/pkgconfig/hyprland.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.57.2-2
+- Drop hyprctl shell completions from %files; 0.57 no longer installs them
+  (hyprctl/CMakeLists.txt now only installs the binary; hyprpm completions remain)
+
 * Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.57.2-1
 - Update to 0.57.2 (feature release plus 0.57.1/0.57.2 regression fixes)
 - Raise floors to match 0.57.2 CMakeLists: aquamarine >= 0.15.0,
