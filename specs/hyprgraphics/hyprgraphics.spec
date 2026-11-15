@@ -21,7 +21,7 @@
 
 %bcond libjxl 0
 Name:           hyprgraphics
-Version:        0.5.1
+Version:        0.6.0
 Release:        1%{?dist}
 Summary:        Graphics library for Hyprland
 
@@ -82,7 +82,7 @@ rm tests/resource/images/hyprland.jpg
 %files
 %license LICENSE
 %doc README.md
-%{_libdir}/libhyprgraphics.so.4
+%{_libdir}/libhyprgraphics.so.5
 %{_libdir}/libhyprgraphics.so.%{version}
 
 %files devel
@@ -91,6 +91,10 @@ rm tests/resource/images/hyprland.jpg
 %{_libdir}/pkgconfig/hyprgraphics.pc
 
 %changelog
+* Sun Nov 15 2026 Karl Fischer <karl@obsidian.co.za> - 0.6.0-1
+- Update to 0.6.0 (SOVERSION 4 -> 5; optional pkg-config Requires now
+  match found deps; still needs pangocairo at build time)
+
 * Thu Sep 24 2026 Karl Fischer <karl@obsidian.co.za> - 0.1.5-1
 - Initial dank-ws-copr package, adapted from Fedora rawhide dist-git spec
 - Disabled libjxl bcond (not needed for hyprland; avoids porting libjxl too)
